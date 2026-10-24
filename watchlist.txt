@@ -1,0 +1,5 @@
+# One ticker per line (Yahoo Finance symbols). Used by the scheduled workflow
+# and by `python scripts/fetch_and_build.py` when no tickers are given.
+NVDA
+AAPL
+MSFT

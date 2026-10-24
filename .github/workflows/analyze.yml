@@ -1,0 +1,79 @@
+name: Analyze
+
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"   # weekdays 21:30 UTC, after the US close (16:00 ET is 20:00-21:00 UTC)
+  workflow_dispatch:           # run manually, incl. from the GitHub mobile app
+    inputs:
+      tickers:
+        description: "Tickers to analyse, space or comma separated (empty = watchlist.txt)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: analyze
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # The input goes through an env var, never interpolated into the script,
+      # so a crafted value cannot inject shell. The Python side also rejects
+      # anything that is not a plausible ticker symbol.
+      #
+      # continue-on-error: one failing ticker (or a Yahoo hiccup) must not
+      # discard the tickers that did succeed -- they are committed below, and
+      # the last step fails the job afterwards so the run still goes red.
+      - name: Fetch data and build docs/data
+        id: build
+        continue-on-error: true
+        env:
+          TICKERS: ${{ inputs.tickers }}
+        run: python scripts/fetch_and_build.py "$TICKERS"
+
+      - name: Scorecard summary
+        if: always()
+        run: python scripts/step_summary.py >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data docs/.nojekyll
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update dashboard data [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          for i in 1 2 3 4; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            echo "Push failed, retrying ($i)..."
+            sleep $((i * 3))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
+
+      - name: Fail job if the build step failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "At least one ticker failed; the rest were still committed above. See the build step's log."
+          exit 1
