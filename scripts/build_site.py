@@ -20,6 +20,7 @@ from typing import Any
 import pandas as pd
 
 import canslim
+import chart_notes
 import indicators as ind
 import market
 
@@ -81,6 +82,7 @@ def build_payload(
             "rsi14": None if pd.isna(last["rsi14"]) else float(last["rsi14"]),
         },
         "canslim": card,
+        "chart_notes": chart_notes.analyze(px),
     }
 
 

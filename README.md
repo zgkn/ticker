@@ -21,6 +21,10 @@ published as a static GitHub Pages site. Information for swing trading only, not
 
 - **Chart**: candles, SMA 10/21/50/150/200 (toggle in the legend), volume with 50-day average, RSI(14),
   MACD(12,26,9), relative-strength line vs SPY. Drag to pan, scroll/pinch to zoom.
+- **Chart watch** (under the chart): a rule-based reading of the latest bars, with what stands out
+  (trend-template checks, extension from the 50-day, breakouts and whether volume confirms, heavy-volume days,
+  RSI/MACD, RS-line leadership, volatility, gaps) and a table of levels to watch (breakout trigger, moving-average
+  support, loss-cutting references). Rules and thresholds are in `scripts/chart_notes.py`. Descriptive, not predictive.
 - **CAN SLIM**: one card per letter with PASS / PARTIAL / FAIL / N/A, the numbers behind it, and a tally.
 - **Overview**: every analysed ticker in one sortable table.
 

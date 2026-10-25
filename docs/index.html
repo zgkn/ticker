@@ -64,6 +64,23 @@
   svg .xh { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 1; }
   svg .ln { fill: none; stroke-width: 1.4; stroke-linejoin: round; }
   .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  #watch { margin-top: 14px; }
+  #watch h2 { font-size: 16px; margin: 0 0 2px; }
+  #watch h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .watch-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .watch-grid { grid-template-columns: 1fr; gap: 0; } }
+  ul.obs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  ul.obs li { border-top: 1px solid var(--faint); padding-top: 8px; }
+  ul.obs .t { font-weight: 600; font-size: 13.5px; }
+  ul.obs .d { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .otag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin-right: 6px; letter-spacing: .3px; white-space: nowrap; }
+  .otag.bullish { background: var(--pass-bg); color: var(--pass-ink); } .otag.bearish { background: var(--fail-bg); color: var(--fail-ink); }
+  .otag.caution { background: var(--partial-bg); color: var(--partial-ink); } .otag.info { background: var(--na-bg); color: var(--na-ink); }
+  table.lv { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.lv td { padding: 7px 0; border-top: 1px solid var(--faint); vertical-align: top; }
+  table.lv td.p { text-align: right; white-space: nowrap; padding-left: 10px; }
+  table.lv .n { color: var(--muted); font-size: 12px; display: block; margin-top: 1px; }
+  table.lv tr.cur td { background: var(--band); font-weight: 600; }
   .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .letter { display: flex; flex-direction: column; gap: 8px; }
   .letter .top { display: flex; align-items: center; gap: 10px; }
@@ -133,6 +150,7 @@
       <div id="panels"></div>
       <div class="hint">Drag to pan · scroll or pinch to zoom · hover for values. Panels: price + moving averages, volume, RSI(14), MACD(12,26,9), relative strength vs <span id="bench">SPY</span>.</div>
     </div>
+    <div id="watch" class="card"></div>
   </section>
 
   <section id="tab-canslim" class="hidden"></section>
@@ -230,7 +248,7 @@
     if (state.tab === "overview") return renderOverview();
     var d = cur();
     if (!d) return;
-    if (state.tab === "chart") { renderStats(d); renderLegend(); renderChart(); }
+    if (state.tab === "chart") { renderStats(d); renderLegend(); renderChart(); renderWatch(d); }
     else renderCanslim(d);
   }
 
@@ -249,6 +267,29 @@
     $("stats").innerHTML = items.map(function (i) {
       return '<div class="card stat"><div class="k">' + esc(i[0]) + '</div><div class="v">' + esc(i[1]) + '</div><div class="s">' + esc(i[2]) + "</div></div>";
     }).join("");
+  }
+
+  var TAGS = { bullish: "▲ BULLISH", bearish: "▼ BEARISH", caution: "⚠ CAUTION", info: "● NOTE" };
+  var SIDES = { up: "↑", down: "↓", ref: "•" };
+  function renderWatch(d) {
+    var host = $("watch"), cn = d.chart_notes;
+    if (!cn) { host.classList.add("hidden"); return; }   // data written before this feature existed
+    host.classList.remove("hidden");
+    var close = d.levels.close;
+    var obs = cn.observations.length ? cn.observations.map(function (o) {
+      return '<li><div class="t"><span class="otag ' + esc(o.tag) + '">' + (TAGS[o.tag] || "") + "</span>" + esc(o.title) + '</div><div class="d">' + esc(o.detail) + "</div></li>";
+    }).join("") : '<li class="d">Nothing notable on the latest bars.</li>';
+    var rows = cn.levels.slice(), placed = false, body = "";
+    function curRow() { return '<tr class="cur"><td>Last close</td><td class="p">' + num(close) + "</td></tr>"; }
+    rows.forEach(function (lv) {
+      if (!placed && lv.price < close) { body += curRow(); placed = true; }
+      body += "<tr><td>" + SIDES[lv.side] + " " + esc(lv.label) + '<span class="n">' + esc(lv.note) + '</span></td><td class="p">' + num(lv.price) + '<span class="n">' + pct(lv.pct) + "</span></td></tr>";
+    });
+    if (!placed) body += curRow();
+    host.innerHTML = "<h2>Chart watch</h2>" +
+      '<div class="note">A rule-based reading of the latest bars, applied the same way to every ticker. It describes what the chart looks like; it does not predict price and is not advice.</div>' +
+      '<div class="watch-grid"><div><h3>What stands out</h3><ul class="obs">' + obs + "</ul></div>" +
+      '<div><h3>Levels to watch</h3><table class="lv">' + body + '</table><div class="note" style="margin-top:8px">↑ above price (resistance / trigger) · ↓ below price (support) · • reference</div></div></div>';
   }
 
   function renderLegend() {

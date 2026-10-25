@@ -29,3 +29,17 @@ def make_fundamentals(strong=True):
         "shares_outstanding": 2.1e9,
         "inst_pct": 0.62 if strong else 0.05,
     }
+
+
+def make_px(close_path, volume=None, high_pad=0.005, low_pad=0.005, bench=None):
+    """Prices from a close path, joined with every indicator (what chart_notes/canslim consume)."""
+    import indicators as ind
+
+    n = len(close_path)
+    idx = pd.bdate_range(end="2026-10-23", periods=n)
+    close = pd.Series(np.asarray(close_path, dtype=float), index=idx)
+    df = pd.DataFrame({"open": close.shift(1).fillna(close.iloc[0]), "high": close * (1 + high_pad), "low": close * (1 - low_pad), "close": close,
+                       "volume": np.full(n, 1e6) if volume is None else np.asarray(volume, dtype=float)}, index=idx)
+    df["high"] = df[["high", "open", "close"]].max(axis=1)
+    df["low"] = df[["low", "open", "close"]].min(axis=1)
+    return df.join(ind.compute_all(df, close if bench is None else bench))
