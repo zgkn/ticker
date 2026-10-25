@@ -15,6 +15,16 @@ on:
         required: false
         default: "10"
         type: string
+      max_off_high:
+        description: "Most a stock may sit below its 52-week high, in percent (100 = no limit)"
+        required: false
+        default: "25"
+        type: string
+      max_stage2:
+        description: "Most stocks to score on all 7 letters (slower the higher it is)"
+        required: false
+        default: "60"
+        type: string
       top:
         description: "Most stocks to show in the shortlist"
         required: false
@@ -56,8 +66,10 @@ jobs:
         env:
           MAX_PRICE: ${{ inputs.max_price || '100' }}
           MIN_PRICE: ${{ inputs.min_price || '10' }}
+          OFF_HIGH: ${{ inputs.max_off_high || '25' }}
+          MAX_STAGE2: ${{ inputs.max_stage2 || '60' }}
           TOP: ${{ inputs.top || '20' }}
-        run: python scripts/screener.py --max-price "$MAX_PRICE" --min-price "$MIN_PRICE" --top "$TOP"
+        run: python scripts/screener.py --max-price "$MAX_PRICE" --min-price "$MIN_PRICE" --max-off-high "$OFF_HIGH" --max-stage2 "$MAX_STAGE2" --top "$TOP"
 
       - name: Summary
         if: always()

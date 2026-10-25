@@ -68,6 +68,25 @@ def test_price_cap_is_a_parameter(spy):
     assert not screener.stage1(prices, spy, 90, 200)[0]         # last close 80 < min 90
 
 
+def test_max_off_high_is_a_parameter(spy):
+    far = {"FAR": make_ohlcv(np.concatenate([line(40, 100, 300), line(100, 70, 100)]))}      # 30% below its high, still above the 200-day
+    assert not screener.stage1(far, spy, 10, 100)[0]                                           # default 25% limit rejects it
+    assert not screener.stage1(far, spy, 10, 100, max_off_high=0.20)[0]
+    kept, _ = screener.stage1(far, spy, 10, 100, max_off_high=1.0)                             # 100% = no limit
+    assert [k["symbol"] for k in kept] == ["FAR"] and kept[0]["pct_off_high"] < -0.25
+
+
+def test_run_records_the_off_high_setting(tmp_path, monkeypatch):
+    out_json, out_dir = str(tmp_path / "s.json"), str(tmp_path / "d")
+    universe = {"AAA": make_ohlcv(line(25, 80, 756))}
+    monkeypatch.setattr(screener, "fetch_universe", lambda *a, **k: list(universe))
+    monkeypatch.setattr(data_lib, "fetch_prices", lambda sym, period=data_lib.HISTORY_PERIOD: make_prices(seed=2, drift=0.0003))
+    monkeypatch.setattr(screener, "download_prices", lambda syms, **k: dict(universe))
+    monkeypatch.setattr(data_lib, "fetch_fundamentals", lambda sym, with_news=True: make_fundamentals(True) | {"symbol": sym, "name": sym})
+    assert screener.run(10, 100, out_json=out_json, out_dir=out_dir, max_off_high=1.0) == 0
+    assert json.load(open(out_json))["params"]["max_off_high"] == 1.0
+
+
 def _payloads(spy_frame, strong):
     prices = {s: make_prices(seed=i + 5, drift=0.001) for i, s in enumerate(strong)}
     fund = lambda sym: make_fundamentals(strong[sym]) | {"symbol": sym, "name": sym}
@@ -136,6 +155,6 @@ def test_run_fails_cleanly_with_no_universe_or_no_prices(tmp_path, monkeypatch):
 
 
 def test_cli_argument_validation():
-    for bad in (["--min-price", "50", "--max-price", "10"], ["--top", "0"], ["--max-stage2", "1000"]):
+    for bad in (["--min-price", "50", "--max-price", "10"], ["--top", "0"], ["--max-stage2", "1000"], ["--max-off-high", "150"], ["--max-off-high", "-1"]):
         with pytest.raises(SystemExit):
             screener.main(bad)

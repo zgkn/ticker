@@ -5,7 +5,7 @@
 Stage 1 (price only, one bulk download for the whole universe) keeps stocks that
   - trade between --min-price and --max-price,
   - average at least MIN_AVG_VOLUME shares a day (50 sessions),
-  - sit within MAX_OFF_HIGH of their 52-week high,
+  - sit within --max-off-high percent of their 52-week high (default 25; 100 = no limit),
   - close above their 200-day average, and
   - have beaten SPY on the weighted 12-month return (the L proxy).
 The best MAX_STAGE2 by outperformance go on to stage 2.
@@ -246,7 +246,7 @@ def screener_row(payload: dict[str, Any]) -> dict[str, Any]:
 # --- orchestration -----------------------------------------------------------
 
 def run(min_price: float, max_price: float, top: int = DEFAULT_TOP, max_stage2: int = MAX_STAGE2,
-        out_json: str | None = None, out_dir: str | None = None) -> int:
+        out_json: str | None = None, out_dir: str | None = None, max_off_high: float = MAX_OFF_HIGH) -> int:
     out_json, out_dir = out_json or SCREENER_JSON, out_dir or SCREEN_DIR
     universe = fetch_universe()
     if not universe:
@@ -262,7 +262,7 @@ def run(min_price: float, max_price: float, top: int = DEFAULT_TOP, max_stage2: 
         qqq = None
 
     prices = download_prices(universe)
-    survivors, rejected = stage1(prices, spy, min_price, max_price)
+    survivors, rejected = stage1(prices, spy, min_price, max_price, max_off_high=max_off_high)
     log.info("stage 1: %d of %d downloaded passed; rejected %s", len(survivors), len(prices), rejected)
     if not prices:
         log.error("no price data downloaded (Yahoo unavailable or throttled)")
@@ -280,7 +280,7 @@ def run(min_price: float, max_price: float, top: int = DEFAULT_TOP, max_stage2: 
     build_site.write_json(out_json, {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "as_of": spy.index[-1].strftime("%Y-%m-%d"),
-        "params": {"min_price": min_price, "max_price": max_price, "min_avg_volume": MIN_AVG_VOLUME, "max_off_high": MAX_OFF_HIGH, "top": top},
+        "params": {"min_price": min_price, "max_price": max_price, "min_avg_volume": MIN_AVG_VOLUME, "max_off_high": max_off_high, "top": top, "max_stage2": max_stage2},
         "market": {"status": mkt["status"], "headline": mkt["headline"]},
         "funnel": {
             "universe": len(universe), "downloaded": len(prices), "stage1": len(survivors), "scored": len(scored),
@@ -296,15 +296,19 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--min-price", type=float, default=DEFAULT_MIN_PRICE)
     ap.add_argument("--max-price", type=float, default=DEFAULT_MAX_PRICE)
+    ap.add_argument("--max-off-high", type=float, default=MAX_OFF_HIGH * 100,
+                    help="most a stock may sit below its 52-week high, in percent (default 25; 100 = no limit)")
     ap.add_argument("--top", type=int, default=DEFAULT_TOP)
     ap.add_argument("--max-stage2", type=int, default=MAX_STAGE2)
     a = ap.parse_args(argv)
     if not (0 <= a.min_price < a.max_price):
         ap.error("need 0 <= --min-price < --max-price")
+    if not (0 <= a.max_off_high <= 100):
+        ap.error("--max-off-high must be 0-100 (percent)")
     if not (1 <= a.top <= 100 and 1 <= a.max_stage2 <= 300):
         ap.error("--top must be 1-100 and --max-stage2 1-300")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    return run(a.min_price, a.max_price, a.top, a.max_stage2)
+    return run(a.min_price, a.max_price, a.top, a.max_stage2, max_off_high=a.max_off_high / 100.0)
 
 
 if __name__ == "__main__":

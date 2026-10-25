@@ -610,9 +610,9 @@
     var symbols = rows.map(function (r) { return r.symbol; }).join(" ");
     host.innerHTML =
       '<div class="card"><div class="funnel">' + funnel + "</div>" +
-      '<div class="note" style="margin-top:10px">Price $' + p.min_price + "–$" + p.max_price + " · average volume ≥ " + fmtVol(p.min_avg_volume) + " · within " + Math.round(p.max_off_high * 100) +
-      "% of the 52-week high · above the 200-day average · beating SPY over 12 months. Then C and A must both PASS; ranked by letters passed. Data as of " + esc(sc.as_of) + ".</div>" +
-      (f.capped_at ? '<div class="note">Only the ' + f.capped_at + " strongest stage-1 stocks (by outperformance) were scored.</div>" : "") +
+      '<div class="note" style="margin-top:10px">Price $' + p.min_price + "–$" + p.max_price + " · average volume ≥ " + fmtVol(p.min_avg_volume) + " · " + (p.max_off_high >= 1 ? "any distance from the 52-week high" : "within " + Math.round(p.max_off_high * 100) + "% of the 52-week high") +
+      " · above the 200-day average · beating SPY over 12 months. Then C and A must both PASS; ranked by letters passed. Data as of " + esc(sc.as_of) + ".</div>" +
+      (f.capped_at ? '<div class="note">Only the ' + f.capped_at + " strongest of the " + f.stage1 + " stage-1 stocks (by outperformance) were scored; the rest were not.</div>" : "") +
       (f.scoring_failed ? '<div class="note">' + f.scoring_failed + " stocks could not be scored (data missing from Yahoo).</div>" : "") +
       '<div class="note">Rejected at stage 1: ' + esc(rej || "none") + ".</div>" +
       '<div class="note"><b>Market direction (M): ' + esc(sc.market.status) + "</b> — " + esc(sc.market.headline) + ". It applies to every stock here.</div></div>" +

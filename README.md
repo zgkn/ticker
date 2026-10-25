@@ -34,15 +34,15 @@ Finds new ideas instead of analysing ones you already have. Run **Screen** from 
 Saturday mornings) with a price range; the default is $10 to $100 a share.
 
 1. **Stage 1, price only** (one bulk download for the whole universe): price in range, average volume of at least
-   500K, within 25% of the 52-week high, above the 200-day average, and beating SPY over 12 months.
+   500K, within a set distance of the 52-week high (default 25%, `max_off_high` input; 100 = no limit), above the 200-day average, and beating SPY over 12 months.
 2. **Stage 2, full CAN SLIM** on the 60 strongest survivors (fundamentals are slow, so only these are fetched).
 3. **Shortlist:** C and A must both pass; ranked by letters passed; top 20.
 
 The universe is the S&P 500 plus the S&P MidCap 400 (from Wikipedia) plus anything in `universe.txt`. Results appear in
 the **Screener** tab (with the funnel counts and market direction); click a row for its chart and scorecard, or use
 **Copy tickers** and the Analyze workflow's **Add to** option to start tracking them. Results are replaced every run.
-Rules and thresholds are at the top of `scripts/screener.py`. A stock far below its highs can never appear here by
-design (stage 1), so it will not surface recovery plays.
+Rules and thresholds are at the top of `scripts/screener.py`. With the default distance, a stock far below its highs
+cannot appear; raise `max_off_high` (up to 100 = no limit) to include recoveries.
 
 ## Pages
 
