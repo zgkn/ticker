@@ -12,12 +12,18 @@ CAVEATS:
     closes will not match the prints of the day.
   - Quarterly fundamentals from yfinance usually cover only the last ~4-5
     quarters, which is the minimum needed for a year-over-year comparison.
+  - Yahoo's news endpoint returned an empty list from GitHub's runners (seen
+    live for AAPL), so headlines also come from Google News RSS, an unofficial
+    free feed. Either source can be empty or change shape; news is context only
+    and an empty result never fails a run.
 """
 from __future__ import annotations
 
 import logging
 import re
 import time
+from email.utils import parsedate_to_datetime
+from urllib.parse import quote
 from typing import Any, Callable
 
 import pandas as pd
@@ -143,15 +149,79 @@ def parse_news(raw: list[dict] | None) -> list[dict[str, str]]:
 
 
 NEWS_TABS = ("news", "press releases")
+GNEWS_URL = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
+GNEWS_UA = "Mozilla/5.0 (compatible; ticker-dashboard)"
+GNEWS_WINDOW = "45d"
+GNEWS_PER_QUERY = 15
+_CORP_SUFFIX = re.compile(r"[,.\s]+(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|n\.?v|s\.?a|ag|llc|class [a-z]|common stock)\.?$", re.I)
+INNOVATION_QUERY = 'launch OR unveils OR introduces OR "new product" OR partnership OR patent'
 
 
-def fetch_news(symbol: str, count: int = 20) -> list[dict[str, str]]:
-    """Yahoo headlines for symbol: the "news" and "press releases" tabs, merged, newest first.
+def short_company_name(name: str, symbol: str) -> str:
+    """'Apple Inc.' -> 'Apple' (for a news query); falls back to the symbol."""
+    n = (name or "").strip()
+    while True:
+        m = _CORP_SUFFIX.search(n)
+        if not m:
+            break
+        n = n[:m.start()].strip()
+    return n.strip(" ,.") or symbol
 
-    Each tab is fetched on a fresh Ticker because yfinance caches the first
-    tab's result on the instance and would return it again for the second.
-    Raw/parsed counts are logged so an empty result can be told apart from a
-    format change.
+
+def parse_google_rss(xml_bytes: bytes) -> list[dict[str, str]]:
+    """Google News RSS -> [{title, summary, date, source, url}], newest first.
+
+    Parsed with lxml with entity resolution and network access off (the feed
+    is third-party). Google appends " - Publisher" to titles; it is moved to
+    `source`. Non-http(s) links are dropped.
+    """
+    from lxml import etree
+
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    root = etree.fromstring(xml_bytes, parser)
+    out = []
+    for item in root.iter("item"):
+        title = (item.findtext("title") or "").strip()
+        source = (item.findtext("source") or "").strip()
+        if source and title.endswith(" - " + source):
+            title = title[: -len(source) - 3].rstrip()
+        if not title:
+            continue
+        try:
+            date = parsedate_to_datetime(item.findtext("pubDate") or "").strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001 - missing/garbled date: keep undated
+            date = ""
+        out.append({"title": title, "summary": "", "date": date, "source": source, "url": _http_url((item.findtext("link") or "").strip())})
+    return sorted(out, key=lambda n: n["date"], reverse=True)
+
+
+def fetch_google_news(symbol: str, name: str) -> list[dict[str, str]]:
+    """Recent headlines from Google News RSS: one general query and one launch/innovation query."""
+    import requests
+
+    company = short_company_name(name, symbol)
+    base = f'"{company}" {symbol}'
+    queries = {"general": f"{base} when:{GNEWS_WINDOW}", "launches": f"{base} ({INNOVATION_QUERY}) when:{GNEWS_WINDOW}"}
+    merged: dict[str, dict[str, str]] = {}
+    for label, q in queries.items():
+        def go(q=q):
+            r = requests.get(GNEWS_URL.format(q=quote(q)), headers={"User-Agent": GNEWS_UA}, timeout=20)
+            r.raise_for_status()
+            return r.content
+        body = _safe(go, f"google news[{label}] {symbol}", None)
+        items = parse_google_rss(body)[:GNEWS_PER_QUERY] if body else []
+        log.info("%s: google news[%s] parsed=%d newest=%s", symbol, label, len(items), items[0]["date"] if items else "-")
+        for n in items:
+            merged.setdefault(n["title"].casefold(), n)
+    return list(merged.values())
+
+
+def fetch_news(symbol: str, name: str = "", count: int = 20) -> list[dict[str, str]]:
+    """Headlines for symbol from Yahoo ("news" + "press releases") and Google News, merged, newest first.
+
+    Each Yahoo tab is fetched on a fresh Ticker because yfinance caches the
+    first tab's result on the instance. Counts are logged so an empty result
+    can be told apart from a format change. Never raises: news is context only.
     """
     import yfinance as yf
 
@@ -159,14 +229,19 @@ def fetch_news(symbol: str, count: int = 20) -> list[dict[str, str]]:
     for tab in NEWS_TABS:
         raw = _safe(lambda: yf.Ticker(symbol).get_news(count=count, tab=tab), f"news[{tab}] {symbol}", []) or []
         parsed = parse_news(raw)
-        log.info("%s: news[%s] raw=%d parsed=%d newest=%s", symbol, tab, len(raw), len(parsed), parsed[0]["date"] if parsed else "-")
+        log.info("%s: yahoo news[%s] raw=%d parsed=%d newest=%s", symbol, tab, len(raw), len(parsed), parsed[0]["date"] if parsed else "-")
         if raw and not parsed:
             first = raw[0] if isinstance(raw[0], dict) else {}
             content = first.get("content") if isinstance(first.get("content"), dict) else {}
-            log.warning("%s: news[%s] returned items we could not parse; item keys=%s content keys=%s",
+            log.warning("%s: yahoo news[%s] returned items we could not parse; item keys=%s content keys=%s",
                         symbol, tab, sorted(first), sorted(content))
         for n in parsed:
             merged.setdefault(n["title"].casefold(), n)
+    try:
+        for n in fetch_google_news(symbol, name):
+            merged.setdefault(n["title"].casefold(), n)
+    except Exception as exc:  # noqa: BLE001 - e.g. lxml missing or malformed feed
+        log.warning("%s: google news failed: %s", symbol, exc)
     return sorted(merged.values(), key=lambda n: n["date"], reverse=True)
 
 
@@ -191,7 +266,8 @@ def fetch_fundamentals(symbol: str) -> dict[str, Any]:
         if len(alt) > len(q_eps):
             q_eps, eps_source = alt, "reported EPS (earnings dates)"
 
-    news = fetch_news(symbol)
+    name = info.get("longName") or info.get("shortName") or symbol
+    news = fetch_news(symbol, name)
 
     return {
         "symbol": symbol,
