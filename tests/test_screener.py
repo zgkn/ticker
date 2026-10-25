@@ -69,7 +69,8 @@ def test_price_cap_is_a_parameter(spy):
 
 
 def test_max_off_high_is_a_parameter(spy):
-    far = {"FAR": make_ohlcv(np.concatenate([line(40, 100, 300), line(100, 70, 100)]))}      # 30% below its high, still above the 200-day
+    # flat at 30, spike to 100, fall back to 70: 30% below its high yet above its 200-day average (~62) and well ahead of SPY
+    far = {"FAR": make_ohlcv(np.concatenate([np.full(250, 30.0), line(30, 100, 50), line(100, 70, 50), np.full(50, 70.0)]))}
     assert not screener.stage1(far, spy, 10, 100)[0]                                           # default 25% limit rejects it
     assert not screener.stage1(far, spy, 10, 100, max_off_high=0.20)[0]
     kept, _ = screener.stage1(far, spy, 10, 100, max_off_high=1.0)                             # 100% = no limit
