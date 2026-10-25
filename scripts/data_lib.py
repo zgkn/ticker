@@ -153,6 +153,10 @@ GNEWS_URL = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
 GNEWS_UA = "Mozilla/5.0 (compatible; ticker-dashboard)"
 GNEWS_WINDOW = "45d"
 GNEWS_PER_QUERY = 15
+GNEWS_TIMEOUT = 10
+# Google answers 503 to GitHub's runners (seen live). One failed request switches the
+# feed off for the rest of the process instead of retrying for every ticker.
+_gnews_down = False
 _CORP_SUFFIX = re.compile(r"[,.\s]+(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|n\.?v|s\.?a|ag|llc|class [a-z]|common stock)\.?$", re.I)
 INNOVATION_QUERY = 'launch OR unveils OR introduces OR "new product" OR partnership OR patent'
 
@@ -196,20 +200,29 @@ def parse_google_rss(xml_bytes: bytes) -> list[dict[str, str]]:
 
 
 def fetch_google_news(symbol: str, name: str) -> list[dict[str, str]]:
-    """Recent headlines from Google News RSS: one general query and one launch/innovation query."""
+    """Recent headlines from Google News RSS: one general query and one launch/innovation query.
+
+    Single attempt per query, no retries: if Google refuses (503/429 from cloud IPs),
+    the feed is skipped for the rest of the run.
+    """
+    global _gnews_down
     import requests
 
+    if _gnews_down:
+        return []
     company = short_company_name(name, symbol)
     base = f'"{company}" {symbol}'
     queries = {"general": f"{base} when:{GNEWS_WINDOW}", "launches": f"{base} ({INNOVATION_QUERY}) when:{GNEWS_WINDOW}"}
     merged: dict[str, dict[str, str]] = {}
     for label, q in queries.items():
-        def go(q=q):
-            r = requests.get(GNEWS_URL.format(q=quote(q)), headers={"User-Agent": GNEWS_UA}, timeout=20)
+        try:
+            r = requests.get(GNEWS_URL.format(q=quote(q)), headers={"User-Agent": GNEWS_UA}, timeout=GNEWS_TIMEOUT)
             r.raise_for_status()
-            return r.content
-        body = _safe(go, f"google news[{label}] {symbol}", None)
-        items = parse_google_rss(body)[:GNEWS_PER_QUERY] if body else []
+            items = parse_google_rss(r.content)[:GNEWS_PER_QUERY]
+        except Exception as exc:  # noqa: BLE001
+            _gnews_down = True
+            log.warning("%s: google news unavailable (%s); skipping it for the rest of this run", symbol, exc)
+            break
         log.info("%s: google news[%s] parsed=%d newest=%s", symbol, label, len(items), items[0]["date"] if items else "-")
         for n in items:
             merged.setdefault(n["title"].casefold(), n)

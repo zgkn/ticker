@@ -245,11 +245,12 @@ def letter_n(px: pd.DataFrame, f: dict | None = None) -> dict[str, Any]:
     news = (f or {}).get("news")
     if news is not None:
         items, n_flagged = recent_catalysts(news, px.index[-1].date())
-        metrics.append((f"Launch-type headlines ({NEWS_WINDOW_DAYS}d)", str(n_flagged) if items else "none found"))
+        metrics.append((f"Launch-type headlines ({NEWS_WINDOW_DAYS}d)", str(n_flagged) if items else "n/a (none retrieved)"))
         if items:
             notes.append("Headlines are matched by keyword and may miss or misread; read the articles. Not part of the PASS/FAIL result.")
         else:
-            notes.append(f"No news headlines from Yahoo in the last {NEWS_WINDOW_DAYS} days.")
+            notes.append(f"No headlines retrieved for the last {NEWS_WINDOW_DAYS} days. The free news feeds often return nothing when queried "
+                         "from cloud servers, so this is not evidence that the company had no news.")
         if status == PASS and n_flagged:
             notes.append("Near highs with fresh launch-type news: the combination O'Neil looks for.")
     return _result(status, headline, metrics, notes, items)

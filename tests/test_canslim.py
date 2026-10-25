@@ -158,4 +158,4 @@ def test_news_never_changes_the_n_status():
 
 def test_n_with_empty_news_says_so():
     res = cs.letter_n(_px(np.linspace(50, 100, 300)), {"news": []})
-    assert res["items"] == [] and any("No news headlines" in n for n in res["notes"])
+    assert res["items"] == [] and any("No headlines retrieved" in n for n in res["notes"])

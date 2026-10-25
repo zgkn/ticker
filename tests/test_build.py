@@ -217,3 +217,18 @@ def test_fetch_news_never_raises_when_every_source_fails(monkeypatch):
     monkeypatch.setattr(requests, "get", boom)
     monkeypatch.setattr(data_lib.time, "sleep", lambda s: None)
     assert data_lib.fetch_news("AAPL", "Apple Inc.") == []
+
+
+def test_google_news_is_switched_off_after_the_first_refusal(monkeypatch):
+    import requests
+
+    calls = []
+
+    def refuse(url, **kw):
+        calls.append(url)
+        raise requests.HTTPError("503 Server Error: Service Unavailable")
+
+    monkeypatch.setattr(requests, "get", refuse)
+    assert data_lib.fetch_google_news("AAPL", "Apple Inc.") == []
+    assert data_lib.fetch_google_news("MSFT", "Microsoft Corporation") == []
+    assert len(calls) == 1          # one request in total, not 2 queries x 2 tickers x retries

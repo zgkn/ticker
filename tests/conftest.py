@@ -23,3 +23,4 @@ def _no_network_no_sleep(monkeypatch):
 
     monkeypatch.setattr(requests, "get", blocked)
     monkeypatch.setattr(data_lib.time, "sleep", lambda s: None)
+    monkeypatch.setattr(data_lib, "_gnews_down", False)   # the circuit breaker is process-wide state
