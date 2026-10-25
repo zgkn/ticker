@@ -3,3 +3,4 @@
 NVDA
 AAPL
 MSFT
+NU
