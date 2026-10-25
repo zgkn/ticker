@@ -1,0 +1,3 @@
+# Extra tickers for the Screener, one per line (Yahoo Finance symbols).
+# The Screener already scans the S&P 500 and S&P MidCap 400; add anything else you want it to consider here,
+# for example Nasdaq names outside those indexes or sector favourites.

@@ -34,6 +34,24 @@ def main(out: str) -> None:
         build_site.write_ticker(p, data_dir)
         rows.append(build_site.summary_row(p))
     build_site.update_index(rows, data_dir, lists={"DEMOUP": "watch", "DEMODN": "consider"})   # DEMOCHOP stays "other"
+
+    # Screener demo: two SYNTHETIC "found" stocks that are not on any list (they live under data/screen/)
+    import screener
+    picks = []
+    for sym, seed in (("SCRNA", 31), ("SCRNB", 32)):
+        f = make_fundamentals(True) | {"symbol": sym, "name": f"{sym.title()} (synthetic)"}
+        p = build_site.build_payload(sym, make_prices(seed=seed, drift=0.0012), spy, qqq, f)
+        p["screen"] = {"outperf": 0.4 - 0.1 * (seed - 31), "avg_volume": 1.2e6}
+        build_site.write_ticker(p, os.path.join(data_dir, "screen"))
+        picks.append(p)
+    build_site.write_json(os.path.join(data_dir, "screener.json"), {
+        "generated_at": "2026-10-24T08:17:00+00:00", "as_of": "2026-10-23",
+        "params": {"min_price": 10, "max_price": 100, "min_avg_volume": 500000, "max_off_high": 0.25, "top": 20},
+        "market": {"status": "PARTIAL", "headline": "Market direction mixed"},
+        "funnel": {"universe": 903, "downloaded": 887, "stage1": 74, "scored": 60, "scoring_failed": 2, "shortlist": 2,
+                   "stage1_rejections": {"price_out_of_range": 410, "low_volume": 38, "too_far_below_high": 255, "below_200d": 90, "lagging_spy": 20, "too_little_history": 0}, "capped_at": 60},
+        "tickers": [screener.screener_row(p) for p in picks],
+    })
     print("wrote", out)
 
 

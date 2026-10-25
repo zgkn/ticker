@@ -28,6 +28,22 @@ published as a static GitHub Pages site. Information for swing trading only, not
   Adding to one list takes the ticker off the other.
 - Or edit the two text files directly (one symbol per line, `#` for comments).
 
+## Screener
+
+Finds new ideas instead of analysing ones you already have. Run **Screen** from the Actions tab (or let it run
+Saturday mornings) with a price range; the default is $10 to $100 a share.
+
+1. **Stage 1, price only** (one bulk download for the whole universe): price in range, average volume of at least
+   500K, within 25% of the 52-week high, above the 200-day average, and beating SPY over 12 months.
+2. **Stage 2, full CAN SLIM** on the 60 strongest survivors (fundamentals are slow, so only these are fetched).
+3. **Shortlist:** C and A must both pass; ranked by letters passed; top 20.
+
+The universe is the S&P 500 plus the S&P MidCap 400 (from Wikipedia) plus anything in `universe.txt`. Results appear in
+the **Screener** tab (with the funnel counts and market direction); click a row for its chart and scorecard, or use
+**Copy tickers** and the Analyze workflow's **Add to** option to start tracking them. Results are replaced every run.
+Rules and thresholds are at the top of `scripts/screener.py`. A stock far below its highs can never appear here by
+design (stage 1), so it will not surface recovery plays.
+
 ## Pages
 
 - **Chart**: candles, SMA 10/21/50/150/200 (toggle in the legend), volume with 50-day average, RSI(14),
@@ -64,6 +80,7 @@ Write a function in `scripts/indicators.py`, add one line to `INDICATORS`, and (
 pip install -r requirements-dev.txt
 python -m pytest                                   # tests use synthetic data, no network
 python scripts/fetch_and_build.py NVDA AAPL        # needs access to Yahoo Finance
+python scripts/screener.py --max-price 100       # scan for ideas (needs Yahoo + Wikipedia access)
 python scripts/lists.py candidates "PLTR UBER"      # edit the lists (watchlist | candidates | remove)
 python -m http.server -d docs 8000                 # then open http://localhost:8000
 python tests/make_demo_site.py /tmp/demo           # preview the page with SYNTHETIC data, offline

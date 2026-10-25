@@ -107,6 +107,8 @@
   .pip { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
   .pip.PASS { background: var(--pass-bg); color: var(--pass-ink); } .pip.PARTIAL { background: var(--partial-bg); color: var(--partial-ink); }
   .pip.FAIL { background: var(--fail-bg); color: var(--fail-ink); } .pip.NA { background: var(--na-bg); color: var(--na-ink); }
+  .funnel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .funnel .stat { min-width: 110px; } .funnel .arrow { color: var(--muted); font-size: 18px; }
   h2.lh { font-size: 16px; margin: 18px 0 2px; } h2.lh:first-child { margin-top: 0; }
   h2.lh .cnt { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--faint); border-radius: 999px; padding: 0 8px; margin-left: 4px; }
   .lnote { margin-bottom: 8px; }
@@ -136,6 +138,7 @@
     <button role="tab" data-tab="chart" aria-selected="true">Chart</button>
     <button role="tab" data-tab="canslim" aria-selected="false">CAN SLIM</button>
     <button role="tab" data-tab="overview" aria-selected="false">Overview</button>
+    <button role="tab" data-tab="screener" aria-selected="false">Screener</button>
   </nav>
 
   <div id="msg" class="empty hidden"></div>
@@ -158,6 +161,7 @@
 
   <section id="tab-canslim" class="hidden"></section>
   <section id="tab-overview" class="hidden"></section>
+  <section id="tab-screener" class="hidden"></section>
 
   <footer>
     Information only, not investment advice. Data from Yahoo Finance via yfinance, which can be delayed, adjusted or incomplete.
@@ -179,8 +183,9 @@
   ];
   var M = { l: 6, r: 58, t: 10, b: 6 }, AXIS_H = 22, MIN_BARS = 20;
   var LETTERS = "CANSLIM";
+  var TABS = ["chart", "canslim", "overview", "screener"];
 
-  var state = { index: null, cache: {}, sym: null, tab: "chart", i0: 0, i1: 0, hover: null, maSel: { sma10: false, sma21: true, sma50: true, sma150: false, sma200: true }, sort: { key: "symbol", dir: 1 } };
+  var state = { screen: null, screenSyms: {}, index: null, cache: {}, sym: null, tab: "chart", i0: 0, i1: 0, hover: null, maSel: { sma10: false, sma21: true, sma50: true, sma150: false, sma200: true }, sort: { key: "symbol", dir: 1 } };
   var $ = function (id) { return document.getElementById(id); };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -202,15 +207,18 @@
   function getJSON(url) {
     return fetch(url, { cache: "no-cache" }).then(function (r) { if (!r.ok) throw new Error(url + " → " + r.status); return r.json(); });
   }
+  function inIndex(sym) { return ((state.index && state.index.tickers) || []).some(function (t) { return t.symbol === sym; }); }
   function loadTicker(sym) {
     if (state.cache[sym]) return Promise.resolve(state.cache[sym]);
-    return getJSON("data/" + encodeURIComponent(sym) + ".json").then(function (d) { state.cache[sym] = d; return d; });
+    // A ticker found by the screener but not tracked on a list lives under data/screen/.
+    var dir = state.screenSyms[sym] && !inIndex(sym) ? "data/screen/" : "data/";
+    return getJSON(dir + encodeURIComponent(sym) + ".json").then(function (d) { state.cache[sym] = d; return d; });
   }
   function showMsg(html) { var m = $("msg"); m.innerHTML = html; m.classList.toggle("hidden", !html); }
   // Nothing to draw yet (no data published): show only the message.
   function noData(html) {
     showMsg(html);
-    ["tab-chart", "tab-canslim", "tab-overview"].forEach(function (id) { $(id).classList.add("hidden"); });
+    ["tab-chart", "tab-canslim", "tab-overview", "tab-screener"].forEach(function (id) { $(id).classList.add("hidden"); });
     document.querySelector("nav.tabs").classList.add("hidden");
     document.querySelector(".controls").classList.add("hidden");
   }
@@ -225,7 +233,7 @@
   function setTab(tab) {
     state.tab = tab;
     Array.prototype.forEach.call(document.querySelectorAll("nav.tabs button"), function (b) { b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"); });
-    ["chart", "canslim", "overview"].forEach(function (t) { $("tab-" + t).classList.toggle("hidden", t !== tab); });
+    TABS.forEach(function (t) { $("tab-" + t).classList.toggle("hidden", t !== tab); });
     setHash();
     render();
   }
@@ -239,7 +247,7 @@
       state.i0 = Math.max(0, state.i1 - 251);
       state.hover = null;
       var row = ((state.index && state.index.tickers) || []).filter(function (t) { return t.symbol === sym; })[0];
-      $("asof").textContent = "as of " + d.as_of + (row ? " · " + listTitle(listOf(row)) : "");
+      $("asof").textContent = "as of " + d.as_of + (row ? " · " + listTitle(listOf(row)) : state.screenSyms[sym] ? " · Screener" : "");
       $("bench").textContent = d.benchmark;
       showMsg("");
       render();
@@ -250,6 +258,7 @@
 
   function render() {
     if (state.tab === "overview") return renderOverview();
+    if (state.tab === "screener") return renderScreener();
     var d = cur();
     if (!d) return;
     if (state.tab === "chart") { renderStats(d); renderLegend(); renderChart(); renderWatch(d); }
@@ -577,6 +586,51 @@
       "To move a ticker between lists: repository → Actions → Analyze → Run workflow, enter the tickers and pick <b>Add to</b>.</p>";
   }
 
+  // ---------- screener tab ----------
+  var REJECT_LABELS = { price_out_of_range: "outside the price range", low_volume: "low volume", too_far_below_high: "too far below the 52-week high",
+    below_200d: "below the 200-day average", lagging_spy: "lagging SPY", too_little_history: "too little history" };
+  function fmtVol(v) { return v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : (v / 1e3).toFixed(0) + "K"; }
+
+  function renderScreener() {
+    var host = $("tab-screener");
+    if (state.screen === null) {
+      host.innerHTML = '<div class="empty">Loading the latest screen…</div>';
+      getJSON("data/screener.json").then(function (j) { state.screen = j; }).catch(function () { state.screen = false; }).then(function () { if (state.tab === "screener") renderScreener(); });
+      return;
+    }
+    if (state.screen === false) {
+      host.innerHTML = '<div class="empty">No screen has been run yet. Run the <b>Screen</b> workflow from the repository\'s Actions tab.</div>';
+      return;
+    }
+    var sc = state.screen, f = sc.funnel, p = sc.params, rows = sc.tickers || [];
+    var rej = Object.keys(f.stage1_rejections || {}).filter(function (k) { return f.stage1_rejections[k] > 0; })
+      .map(function (k) { return f.stage1_rejections[k] + " " + (REJECT_LABELS[k] || k); }).join(" · ");
+    var steps = [["Scanned", f.downloaded], ["Passed price & trend filters", f.stage1], ["Scored on all 7 letters", f.scored], ["C and A both pass", f.shortlist]];
+    var funnel = steps.map(function (s, i) { return '<div class="stat"><div class="k">' + esc(s[0]) + '</div><div class="v">' + s[1] + "</div></div>" + (i < steps.length - 1 ? '<div class="arrow">→</div>' : ""); }).join("");
+    var symbols = rows.map(function (r) { return r.symbol; }).join(" ");
+    host.innerHTML =
+      '<div class="card"><div class="funnel">' + funnel + "</div>" +
+      '<div class="note" style="margin-top:10px">Price $' + p.min_price + "–$" + p.max_price + " · average volume ≥ " + fmtVol(p.min_avg_volume) + " · within " + Math.round(p.max_off_high * 100) +
+      "% of the 52-week high · above the 200-day average · beating SPY over 12 months. Then C and A must both PASS; ranked by letters passed. Data as of " + esc(sc.as_of) + ".</div>" +
+      (f.capped_at ? '<div class="note">Only the ' + f.capped_at + " strongest stage-1 stocks (by outperformance) were scored.</div>" : "") +
+      (f.scoring_failed ? '<div class="note">' + f.scoring_failed + " stocks could not be scored (data missing from Yahoo).</div>" : "") +
+      '<div class="note">Rejected at stage 1: ' + esc(rej || "none") + ".</div>" +
+      '<div class="note"><b>Market direction (M): ' + esc(sc.market.status) + "</b> — " + esc(sc.market.headline) + ". It applies to every stock here.</div></div>" +
+      (rows.length ? '<div class="toolbar" style="margin:12px 0 8px"><h2 class="lh" style="margin:0">Shortlist <span class="cnt">' + rows.length + '</span></h2><button id="copy-syms" data-syms="' + esc(symbols) + '">Copy tickers</button></div>' + overviewTable(rows) :
+        '<div class="card empty" style="margin-top:12px">Nothing passed. Either the market is weak or few stocks in this price range have both earnings letters passing; try a wider price range.</div>') +
+      '<p class="note">Click a row to open its chart and scorecard. To track one: repository → Actions → <b>Analyze</b> → Run workflow, enter the tickers (use <b>Copy tickers</b>) and pick <b>Add to</b> candidates or watchlist. Screener results are replaced on every run.</p>';
+  }
+
+  function openScreened(sym) {
+    state.screenSyms[sym] = true;
+    if (!inIndex(sym) && !Array.prototype.some.call($("sym").options, function (o) { return o.value === sym; })) {
+      var g = $("grp-screen");
+      if (!g) { g = document.createElement("optgroup"); g.id = "grp-screen"; g.label = "Screener"; $("sym").appendChild(g); }
+      var o = document.createElement("option"); o.value = sym; o.textContent = sym; g.appendChild(o);
+    }
+    return selectTicker(sym).then(function () { setTab("chart"); });
+  }
+
   // ---------- boot ----------
   function init() {
     bindChart();
@@ -586,6 +640,14 @@
       var th = e.target.closest("[data-sort]"), tr = e.target.closest("tr[data-sym]");
       if (th) { var k = th.dataset.sort; state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : 1 }; renderOverview(); }
       else if (tr) { selectTicker(tr.dataset.sym).then(function () { setTab("chart"); }); }
+    });
+    $("tab-screener").addEventListener("click", function (e) {
+      var th = e.target.closest("[data-sort]"), tr = e.target.closest("tr[data-sym]"), cp = e.target.closest("#copy-syms");
+      if (th) { var k = th.dataset.sort; state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : 1 }; renderScreener(); }
+      else if (cp) {
+        var txt = cp.dataset.syms, done = function () { cp.textContent = "Copied"; setTimeout(function () { cp.textContent = "Copy tickers"; }, 1500); };
+        try { navigator.clipboard.writeText(txt).then(done, function () { window.prompt("Copy these tickers:", txt); }); } catch (err) { window.prompt("Copy these tickers:", txt); }
+      } else if (tr) { openScreened(tr.dataset.sym); }
     });
     window.addEventListener("hashchange", function () { var h = parseHash(); if (h.sym && h.sym !== state.sym && state.index) selectTicker(h.sym); if (h.tab && h.tab !== state.tab) setTab(h.tab); });
 
@@ -598,7 +660,7 @@
         return opts ? '<optgroup label="' + l.title + '">' + opts + "</optgroup>" : "";
       }).join("");
       var h = parseHash(), first = tickers.some(function (t) { return t.symbol === h.sym; }) ? h.sym : $("sym").options[0].value;
-      state.tab = ["chart", "canslim", "overview"].indexOf(h.tab) >= 0 ? h.tab : "chart";
+      state.tab = TABS.indexOf(h.tab) >= 0 ? h.tab : "chart";
       return selectTicker(first).then(function () { setTab(state.tab); });
     }).catch(function () { noData("No data published yet. Run the <b>Analyze</b> workflow from the repository's Actions tab to create <code>docs/data/</code>."); });
   }

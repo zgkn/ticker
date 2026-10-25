@@ -264,10 +264,12 @@ def fetch_news(symbol: str, name: str = "", count: int = 20) -> list[dict[str, s
     return sorted(merged.values(), key=lambda n: n["date"], reverse=True)
 
 
-def fetch_fundamentals(symbol: str) -> dict[str, Any]:
+def fetch_fundamentals(symbol: str, with_news: bool = True) -> dict[str, Any]:
     """Fundamentals for CAN SLIM. Missing fields are None / empty lists, never fabricated.
 
     quarterly_eps / annual_eps / quarterly_revenue: ascending [(YYYY-MM-DD, value)].
+    with_news=False skips the headline fetch (the screener scores many tickers and
+    news is context only).
     """
     import yfinance as yf
 
@@ -286,7 +288,7 @@ def fetch_fundamentals(symbol: str) -> dict[str, Any]:
             q_eps, eps_source = alt, "reported EPS (earnings dates)"
 
     name = info.get("longName") or info.get("shortName") or symbol
-    news = fetch_news(symbol, name)
+    news = fetch_news(symbol, name) if with_news else None
 
     return {
         "symbol": symbol,

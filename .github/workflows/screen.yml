@@ -1,0 +1,88 @@
+name: Screen
+
+on:
+  schedule:
+    - cron: "17 8 * * 6"      # Saturdays 08:17 UTC: Friday's close is final
+  workflow_dispatch:
+    inputs:
+      max_price:
+        description: "Highest share price to consider (USD)"
+        required: false
+        default: "100"
+        type: string
+      min_price:
+        description: "Lowest share price to consider (USD)"
+        required: false
+        default: "10"
+        type: string
+      top:
+        description: "Most stocks to show in the shortlist"
+        required: false
+        default: "20"
+        type: string
+
+permissions:
+  contents: write
+
+# Shares a group with Analyze so the two never push to the branch at the same time.
+concurrency:
+  group: analyze
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Inputs go through env vars (never interpolated into the script); the
+      # script parses them as numbers and rejects anything else.
+      - name: Run the screener
+        id: screen
+        continue-on-error: true
+        env:
+          MAX_PRICE: ${{ inputs.max_price || '100' }}
+          MIN_PRICE: ${{ inputs.min_price || '10' }}
+          TOP: ${{ inputs.top || '20' }}
+        run: python scripts/screener.py --max-price "$MAX_PRICE" --min-price "$MIN_PRICE" --top "$TOP"
+
+      - name: Summary
+        if: always()
+        run: python scripts/step_summary.py screener >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data/screener.json docs/data/screen
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update screener results [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          for i in 1 2 3 4; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            echo "Push failed, retrying ($i)..."
+            sleep $((i * 3))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
+
+      - name: Fail job if the screener failed
+        if: steps.screen.outcome == 'failure'
+        run: |
+          echo "The screener failed; nothing was published. See the 'Run the screener' step's log."
+          exit 1
