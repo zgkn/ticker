@@ -1,7 +1,7 @@
 """CLI entry point: fetch data for tickers and rebuild docs/data/*.json.
 
     python scripts/fetch_and_build.py NVDA AAPL      # explicit tickers (space or comma separated)
-    python scripts/fetch_and_build.py                # falls back to watchlist.txt
+    python scripts/fetch_and_build.py                # falls back to watchlist.txt + candidates.txt
 
 One bad ticker never stops the others: failures are logged, the rest are
 still written, and the exit code is 1 if any ticker failed so the workflow run
@@ -11,36 +11,24 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import build_site  # noqa: E402
 import data_lib  # noqa: E402
+import lists  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("fetch_and_build")
 
-WATCHLIST = os.path.join(os.path.dirname(__file__), "..", "watchlist.txt")
-
-
-def read_watchlist(path: str = WATCHLIST) -> list[str]:
-    if not os.path.exists(path):
-        return []
-    with open(path) as fh:
-        return [ln.split("#")[0].strip() for ln in fh if ln.split("#")[0].strip()]
-
-
-def parse_tickers(args: list[str]) -> list[str]:
-    """Split on commas/whitespace, validate, upper-case, de-duplicate (order kept)."""
-    raw = [t for a in args for t in re.split(r"[,\s]+", a) if t]
-    return list(dict.fromkeys(data_lib.normalize_symbol(t) for t in raw))
+parse_tickers = data_lib.parse_symbols
 
 
 def main(argv: list[str]) -> int:
-    tickers = parse_tickers(argv) or parse_tickers(read_watchlist())
+    membership = lists.read_lists()
+    tickers = parse_tickers(argv) or list(membership)
     if not tickers:
-        log.error("no tickers given and watchlist.txt is empty")
+        log.error("no tickers given and watchlist.txt / candidates.txt are empty")
         return 2
 
     log.info("fetching benchmarks %s, %s", data_lib.BENCHMARK, data_lib.SECOND_INDEX)
@@ -66,8 +54,8 @@ def main(argv: list[str]) -> int:
             log.exception("%s: failed", sym)
             failed.append(sym)
 
-    if rows:
-        build_site.update_index(rows)
+    if rows or os.path.exists(os.path.join(build_site.DATA_DIR, "index.json")):
+        build_site.update_index(rows, lists=membership)
     if failed:
         log.error("failed tickers: %s", ", ".join(failed))
         return 1

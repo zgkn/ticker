@@ -1,5 +1,6 @@
-# One ticker per line (Yahoo Finance symbols). Used by the scheduled workflow
-# and by `python scripts/fetch_and_build.py` when no tickers are given.
+# Watchlist: tickers being actively watched.
+# One ticker per line (Yahoo Finance symbols). Refreshed by the daily run and shown
+# at the top of the Overview tab. Tickers under consideration go in candidates.txt.
 NVDA
 AAPL
 MSFT

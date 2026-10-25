@@ -112,17 +112,45 @@ def write_ticker(payload: dict[str, Any], data_dir: str | None = None) -> None:
     write_json(os.path.join(data_dir or DATA_DIR, f"{payload['symbol']}.json"), payload)
 
 
-def update_index(rows: list[dict[str, Any]], data_dir: str | None = None) -> dict[str, Any]:
-    """Merge rows into data/index.json by symbol (tickers accumulate across runs)."""
+def update_index(rows: list[dict[str, Any]], data_dir: str | None = None, lists: dict[str, str] | None = None) -> dict[str, Any]:
+    """Merge rows into data/index.json by symbol (tickers accumulate across runs).
+
+    lists maps symbol -> "watch" / "consider"; when given, EVERY row (not just the
+    new ones) gets a `list` field, with "other" for tickers on neither list.
+    """
     path = os.path.join(data_dir or DATA_DIR, "index.json")
     existing: dict[str, dict] = {}
     if os.path.exists(path):
         with open(path) as fh:
             existing = {r["symbol"]: r for r in json.load(fh).get("tickers", [])}
     existing.update({r["symbol"]: r for r in rows})
+    if lists is not None:
+        for sym, row in existing.items():
+            row["list"] = lists.get(sym, "other")
     index = {
         "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tickers": sorted(existing.values(), key=lambda r: r["symbol"]),
     }
     write_json(path, index)
     return index
+
+
+def remove_tickers(symbols: list[str], data_dir: str | None = None) -> list[str]:
+    """Delete data/<SYMBOL>.json and drop the symbols from index.json. Returns those actually removed."""
+    d = data_dir or DATA_DIR
+    removed = []
+    for sym in symbols:
+        f = os.path.join(d, f"{sym}.json")
+        if os.path.exists(f):
+            os.remove(f)
+            removed.append(sym)
+    path = os.path.join(d, "index.json")
+    if os.path.exists(path):
+        with open(path) as fh:
+            idx = json.load(fh)
+        listed = {t["symbol"] for t in idx.get("tickers", [])} & set(symbols)
+        if listed:
+            idx["tickers"] = [t for t in idx["tickers"] if t["symbol"] not in listed]
+            write_json(path, idx)
+            removed += sorted(listed)
+    return sorted(set(removed))

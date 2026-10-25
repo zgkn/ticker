@@ -107,6 +107,9 @@
   .pip { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
   .pip.PASS { background: var(--pass-bg); color: var(--pass-ink); } .pip.PARTIAL { background: var(--partial-bg); color: var(--partial-ink); }
   .pip.FAIL { background: var(--fail-bg); color: var(--fail-ink); } .pip.NA { background: var(--na-bg); color: var(--na-ink); }
+  h2.lh { font-size: 16px; margin: 18px 0 2px; } h2.lh:first-child { margin-top: 0; }
+  h2.lh .cnt { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--faint); border-radius: 999px; padding: 0 8px; margin-left: 4px; }
+  .lnote { margin-bottom: 8px; }
   .tablewrap { overflow-x: auto; }
   table.ov { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
   table.ov th, table.ov td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--faint); white-space: nowrap; }
@@ -235,7 +238,8 @@
       state.i1 = d.dates.length - 1;
       state.i0 = Math.max(0, state.i1 - 251);
       state.hover = null;
-      $("asof").textContent = "as of " + d.as_of;
+      var row = ((state.index && state.index.tickers) || []).filter(function (t) { return t.symbol === sym; })[0];
+      $("asof").textContent = "as of " + d.as_of + (row ? " · " + listTitle(listOf(row)) : "");
       $("bench").textContent = d.benchmark;
       showMsg("");
       render();
@@ -537,20 +541,40 @@
   }
 
   // ---------- overview tab ----------
-  function renderOverview() {
-    var host = $("tab-overview"), rows = (state.index && state.index.tickers) || [];
-    if (!rows.length) { host.innerHTML = '<div class="empty">No tickers analysed yet.</div>'; return; }
+  var LISTS = [
+    { id: "watch", title: "Watchlist", note: "Being watched. Refreshed every weekday after the US close.",
+      empty: "Nothing on the watchlist yet. Promote a candidate with the Analyze workflow (Add to: watchlist)." },
+    { id: "consider", title: "Candidates", note: "Under consideration for the watchlist. Refreshed every weekday after the US close.",
+      empty: "No candidates. Add some with the Analyze workflow (Add to: candidates)." },
+    { id: "other", title: "Other", note: "Analysed once and on neither list, so not refreshed: the 'As of' date shows how old each is.", empty: "" }
+  ];
+  function listOf(r) { return r.list === "watch" || r.list === "consider" ? r.list : "other"; }
+  function listTitle(id) { return (LISTS.filter(function (l) { return l.id === id; })[0] || {}).title || ""; }
+
+  function overviewTable(rows) {
     var key = state.sort.key, dir = state.sort.dir;
     var val = function (r) { return key === "score" ? r.tally.pass / Math.max(1, r.tally.scored) : r[key]; };
     rows = rows.slice().sort(function (a, b) { var x = val(a), y = val(b); if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     var th = function (k, label, l) { return '<th data-sort="' + k + '"' + (l ? ' class="l"' : "") + ">" + label + (key === k ? (dir > 0 ? " ▲" : " ▼") : "") + "</th>"; };
-    host.innerHTML = '<div class="card tablewrap"><table class="ov"><thead><tr>' + th("symbol", "Ticker") + th("name", "Name", 1) + th("close", "Close") + th("pct_off_high", "Off 52w high") + th("rsi14", "RSI") +
+    return '<div class="card tablewrap"><table class="ov"><thead><tr>' + th("symbol", "Ticker") + th("name", "Name", 1) + th("close", "Close") + th("pct_off_high", "Off 52w high") + th("rsi14", "RSI") +
       "<th>C A N S L I M</th>" + th("score", "Pass") + th("as_of", "As of") + "</tr></thead><tbody>" +
       rows.map(function (r) {
         var pips = LETTERS.split("").map(function (k) { var s = r.letters[k]; return '<div class="pip ' + cls(s) + '" title="' + k + ": " + esc(s) + '">' + glyph(s) + "</div>"; }).join("");
         return '<tr data-sym="' + esc(r.symbol) + '"><td><b>' + esc(r.symbol) + '</b></td><td class="l">' + esc(r.name) + "</td><td>" + num(r.close) + "</td><td>" + pct(r.pct_off_high) + "</td><td>" + num(r.rsi14, 0) +
           '</td><td><div class="pips">' + pips + "</div></td><td>" + r.tally.pass + " / " + r.tally.scored + "</td><td>" + esc(r.as_of) + "</td></tr>";
-      }).join("") + "</tbody></table></div><p class=\"note\">✓ pass · ~ partial · ✗ fail · – not available. Click a row to open the chart; click a header to sort.</p>";
+      }).join("") + "</tbody></table></div>";
+  }
+
+  function renderOverview() {
+    var host = $("tab-overview"), all = (state.index && state.index.tickers) || [];
+    if (!all.length) { host.innerHTML = '<div class="empty">No tickers analysed yet.</div>'; return; }
+    host.innerHTML = LISTS.map(function (l) {
+      var rows = all.filter(function (r) { return listOf(r) === l.id; });
+      if (!rows.length && !l.empty) return "";
+      return '<h2 class="lh">' + l.title + ' <span class="cnt">' + rows.length + '</span></h2><div class="note lnote">' + esc(l.note) + "</div>" +
+        (rows.length ? overviewTable(rows) : '<div class="card empty" style="padding:20px">' + esc(l.empty) + "</div>");
+    }).join("") + '<p class="note">✓ pass · ~ partial · ✗ fail · – not available. Click a row to open the chart; click a header to sort. ' +
+      "To move a ticker between lists: repository → Actions → Analyze → Run workflow, enter the tickers and pick <b>Add to</b>.</p>";
   }
 
   // ---------- boot ----------
@@ -569,8 +593,11 @@
       state.index = idx;
       var tickers = idx.tickers || [];
       if (!tickers.length) { noData("No tickers analysed yet. Run the <b>Analyze</b> workflow from the repository's Actions tab."); return; }
-      $("sym").innerHTML = tickers.map(function (t) { return '<option value="' + esc(t.symbol) + '">' + esc(t.symbol) + " — " + esc(t.name) + "</option>"; }).join("");
-      var h = parseHash(), first = tickers.some(function (t) { return t.symbol === h.sym; }) ? h.sym : tickers[0].symbol;
+      $("sym").innerHTML = LISTS.map(function (l) {
+        var opts = tickers.filter(function (t) { return listOf(t) === l.id; }).map(function (t) { return '<option value="' + esc(t.symbol) + '">' + esc(t.symbol) + " — " + esc(t.name) + "</option>"; }).join("");
+        return opts ? '<optgroup label="' + l.title + '">' + opts + "</optgroup>" : "";
+      }).join("");
+      var h = parseHash(), first = tickers.some(function (t) { return t.symbol === h.sym; }) ? h.sym : $("sym").options[0].value;
       state.tab = ["chart", "canslim", "overview"].indexOf(h.tab) >= 0 ? h.tab : "chart";
       return selectTicker(first).then(function () { setTab(state.tab); });
     }).catch(function () { noData("No data published yet. Run the <b>Analyze</b> workflow from the repository's Actions tab to create <code>docs/data/</code>."); });

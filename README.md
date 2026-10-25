@@ -14,8 +14,19 @@ published as a static GitHub Pages site. Information for swing trading only, not
 ## One-time setup
 
 - Settings → Pages → *Deploy from a branch* → branch `main`, folder `/docs`.
-- Run **Analyze** with e.g. `NVDA AAPL` (leave empty to use `watchlist.txt`). Tickers accumulate in the overview.
+- Run **Analyze** with e.g. `NVDA AAPL`. Leave the tickers empty to refresh everything on both lists.
 - Note: on a public repo the site and the tickers you analyse are public.
+
+## Lists
+
+- `watchlist.txt`: tickers you are actively watching. `candidates.txt`: tickers under consideration for the watchlist.
+- Both are refreshed every weekday after the US close and shown in separate sections of the **Overview** tab
+  (a ticker on both counts as watchlist). Tickers analysed once but on neither list appear under **Other**
+  and are not refreshed; their "As of" date shows how old they are.
+- Move tickers without editing files: Actions → **Analyze** → Run workflow → enter tickers → **Add to**:
+  `watchlist`, `candidates`, or `remove` (takes them off both lists and deletes their published data; nothing is fetched).
+  Adding to one list takes the ticker off the other.
+- Or edit the two text files directly (one symbol per line, `#` for comments).
 
 ## Pages
 
@@ -53,6 +64,7 @@ Write a function in `scripts/indicators.py`, add one line to `INDICATORS`, and (
 pip install -r requirements-dev.txt
 python -m pytest                                   # tests use synthetic data, no network
 python scripts/fetch_and_build.py NVDA AAPL        # needs access to Yahoo Finance
+python scripts/lists.py candidates "PLTR UBER"      # edit the lists (watchlist | candidates | remove)
 python -m http.server -d docs 8000                 # then open http://localhost:8000
 python tests/make_demo_site.py /tmp/demo           # preview the page with SYNTHETIC data, offline
 ```

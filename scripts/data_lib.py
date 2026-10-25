@@ -46,6 +46,12 @@ def normalize_symbol(raw: str) -> str:
     return sym
 
 
+def parse_symbols(args: list[str]) -> list[str]:
+    """Split on commas/whitespace, validate, upper-case, de-duplicate (order kept)."""
+    raw = [t for a in args for t in re.split(r"[,\s]+", a) if t]
+    return list(dict.fromkeys(normalize_symbol(t) for t in raw))
+
+
 def _retry(fn: Callable[[], Any], what: str, attempts: int = 4) -> Any:
     delay = 2.0
     for i in range(1, attempts + 1):

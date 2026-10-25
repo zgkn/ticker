@@ -33,7 +33,7 @@ def main(out: str) -> None:
         p = build_site.build_payload(sym, make_prices(seed=seed, drift=drift), spy, qqq, f)
         build_site.write_ticker(p, data_dir)
         rows.append(build_site.summary_row(p))
-    build_site.update_index(rows, data_dir)
+    build_site.update_index(rows, data_dir, lists={"DEMOUP": "watch", "DEMODN": "consider"})   # DEMOCHOP stays "other"
     print("wrote", out)
 
 
