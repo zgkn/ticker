@@ -142,6 +142,34 @@ def parse_news(raw: list[dict] | None) -> list[dict[str, str]]:
     return sorted(out, key=lambda n: n["date"], reverse=True)
 
 
+NEWS_TABS = ("news", "press releases")
+
+
+def fetch_news(symbol: str, count: int = 20) -> list[dict[str, str]]:
+    """Yahoo headlines for symbol: the "news" and "press releases" tabs, merged, newest first.
+
+    Each tab is fetched on a fresh Ticker because yfinance caches the first
+    tab's result on the instance and would return it again for the second.
+    Raw/parsed counts are logged so an empty result can be told apart from a
+    format change.
+    """
+    import yfinance as yf
+
+    merged: dict[str, dict[str, str]] = {}
+    for tab in NEWS_TABS:
+        raw = _safe(lambda: yf.Ticker(symbol).get_news(count=count, tab=tab), f"news[{tab}] {symbol}", []) or []
+        parsed = parse_news(raw)
+        log.info("%s: news[%s] raw=%d parsed=%d newest=%s", symbol, tab, len(raw), len(parsed), parsed[0]["date"] if parsed else "-")
+        if raw and not parsed:
+            first = raw[0] if isinstance(raw[0], dict) else {}
+            content = first.get("content") if isinstance(first.get("content"), dict) else {}
+            log.warning("%s: news[%s] returned items we could not parse; item keys=%s content keys=%s",
+                        symbol, tab, sorted(first), sorted(content))
+        for n in parsed:
+            merged.setdefault(n["title"].casefold(), n)
+    return sorted(merged.values(), key=lambda n: n["date"], reverse=True)
+
+
 def fetch_fundamentals(symbol: str) -> dict[str, Any]:
     """Fundamentals for CAN SLIM. Missing fields are None / empty lists, never fabricated.
 
@@ -163,7 +191,7 @@ def fetch_fundamentals(symbol: str) -> dict[str, Any]:
         if len(alt) > len(q_eps):
             q_eps, eps_source = alt, "reported EPS (earnings dates)"
 
-    news = parse_news(_safe(lambda: t.news, f"news {symbol}", []))
+    news = fetch_news(symbol)
 
     return {
         "symbol": symbol,

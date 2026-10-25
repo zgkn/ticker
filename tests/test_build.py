@@ -96,3 +96,44 @@ def test_parse_news_handles_current_and_legacy_yfinance_shapes():
     assert by_title["Legacy item"]["date"].startswith("20")
     assert by_title["Bad link"]["url"] == ""          # non-http(s) links are dropped
     assert data_lib.parse_news(None) == [] and data_lib.parse_news([]) == []
+
+
+def test_fetch_news_merges_tabs_dedupes_and_uses_a_fresh_ticker_per_tab(monkeypatch):
+    import yfinance
+
+    made = []
+
+    class FakeTicker:
+        def __init__(self, sym):
+            self.tabs = []
+            made.append(self)
+
+        def get_news(self, count=10, tab="news"):
+            self.tabs.append(tab)
+            if tab == "news":
+                return [{"content": {"title": "Shared headline", "pubDate": "2026-10-20T00:00:00Z"}},
+                        {"content": {"title": "Only in news", "pubDate": "2026-10-22T00:00:00Z"}}]
+            return [{"content": {"title": "shared headline", "pubDate": "2026-10-20T00:00:00Z"}},     # same title, other case
+                    {"content": {"title": "Acme unveils new thing", "pubDate": "2026-10-23T00:00:00Z"}}]
+
+    monkeypatch.setattr(yfinance, "Ticker", FakeTicker)
+    out = data_lib.fetch_news("ACME")
+    assert [n["title"] for n in out] == ["Acme unveils new thing", "Only in news", "Shared headline"]
+    assert len(made) == 2 and [t.tabs for t in made] == [["news"], ["press releases"]]
+
+
+def test_fetch_news_survives_a_failing_tab(monkeypatch):
+    import yfinance
+
+    class FlakyTicker:
+        def __init__(self, sym):
+            pass
+
+        def get_news(self, count=10, tab="news"):
+            if tab == "news":
+                raise RuntimeError("boom")
+            return [{"content": {"title": "Press release", "pubDate": "2026-10-23T00:00:00Z"}}]
+
+    monkeypatch.setattr(yfinance, "Ticker", FlakyTicker)
+    monkeypatch.setattr(data_lib.time, "sleep", lambda s: None)   # skip retry back-off
+    assert [n["title"] for n in data_lib.fetch_news("ACME")] == ["Press release"]
