@@ -77,6 +77,13 @@
   table.kv td { padding: 3px 0; border-top: 1px solid var(--faint); vertical-align: top; }
   table.kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   .letter ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+  .news { list-style: none; padding: 0 !important; display: flex; flex-direction: column; gap: 6px; }
+  .news li { display: flex; flex-direction: column; gap: 1px; border-top: 1px solid var(--faint); padding-top: 6px; }
+  .news a { color: var(--ink); text-decoration: none; font-size: 13px; }
+  .news a:hover { text-decoration: underline; color: var(--accent); }
+  .news .meta { font-size: 11.5px; color: var(--muted); }
+  .tag { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--band); color: var(--accent); margin-right: 6px; border: 1px solid var(--accent); }
+  .sub { font-size: 12px; font-weight: 600; color: var(--muted); margin: 2px 0 -2px; }
   .summary { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-bottom: 12px; }
   .summary .score { font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pips { display: flex; gap: 6px; }
@@ -162,6 +169,13 @@
   function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function glyph(s) { return s === "PASS" ? "✓" : s === "PARTIAL" ? "~" : s === "FAIL" ? "✗" : "–"; }
   function cls(s) { return s === "N/A" ? "NA" : s; }
+  // Links come from third-party data: only http(s) URLs become hrefs.
+  function safeUrl(u) { return /^https?:\/\//i.test(u || "") ? u : ""; }
+  function newsItem(n) {
+    var u = safeUrl(n.url), title = esc(n.title);
+    return "<li>" + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + title + "</a>" : "<span>" + title + "</span>") +
+      '<span class="meta">' + (n.tag ? '<span class="tag">NEW / LAUNCH</span>' : "") + esc([n.date, n.source].filter(Boolean).join(" · ")) + "</span></li>";
+  }
 
   // ---------- data ----------
   function getJSON(url) {
@@ -471,6 +485,7 @@
       var r = c.letters[k];
       return '<div class="card letter"><div class="top"><div class="big">' + k + '</div><div><div class="label">' + esc(r.label) + '</div><div class="headline">' + esc(r.headline) + '</div></div><span class="badge ' + cls(r.status) + '">' + glyph(r.status) + " " + esc(r.status) + "</span></div>" +
         (r.metrics.length ? '<table class="kv">' + r.metrics.map(function (m) { return "<tr><td>" + esc(m.k) + "</td><td>" + esc(m.v) + "</td></tr>"; }).join("") + "</table>" : "") +
+        (r.items && r.items.length ? '<div class="sub">Recent news &amp; catalysts</div><ul class="news">' + r.items.map(newsItem).join("") + "</ul>" : "") +
         (r.notes.length ? "<ul>" + r.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>" : "") + "</div>";
     }).join("");
     $("tab-canslim").innerHTML =

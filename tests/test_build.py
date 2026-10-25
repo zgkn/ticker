@@ -77,3 +77,22 @@ def test_cli_rejects_bad_symbol_before_any_network(monkeypatch):
     monkeypatch.setattr(data_lib, "fetch_prices", boom)
     with pytest.raises(ValueError):
         fetch_and_build.main(["NVDA;rm"])
+
+
+def test_parse_news_handles_current_and_legacy_yfinance_shapes():
+    raw = [
+        {"id": "1", "content": {"title": " New thing launched ", "summary": "s", "pubDate": "2026-10-20T14:30:00Z",
+                                 "provider": {"displayName": "Reuters"}, "canonicalUrl": {"url": "https://x.test/1"}}},
+        {"title": "Legacy item", "publisher": "Old Wire", "link": "https://x.test/2", "providerPublishTime": 1792000000},
+        {"content": {"title": "Bad link", "pubDate": "2026-10-21T00:00:00Z", "canonicalUrl": {"url": "javascript:alert(1)"}}},
+        {"content": {"title": ""}},
+        "garbage",
+    ]
+    out = data_lib.parse_news(raw)
+    assert [n["title"] for n in out] == ["Bad link", "New thing launched", "Legacy item"]
+    by_title = {n["title"]: n for n in out}
+    assert by_title["New thing launched"] == {"title": "New thing launched", "summary": "s", "date": "2026-10-20", "source": "Reuters", "url": "https://x.test/1"}
+    assert by_title["Legacy item"]["source"] == "Old Wire" and by_title["Legacy item"]["url"] == "https://x.test/2"
+    assert by_title["Legacy item"]["date"].startswith("20")
+    assert by_title["Bad link"]["url"] == ""          # non-http(s) links are dropped
+    assert data_lib.parse_news(None) == [] and data_lib.parse_news([]) == []

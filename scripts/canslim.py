@@ -14,11 +14,16 @@ CAVEATS (the page repeats the first two):
   - EPS comes from yfinance's income statement (GAAP diluted) or, when that has
     too few quarters, reported EPS. O'Neil uses "as reported" earnings, so
     figures can differ from IBD's.
+  - N's "new product / innovation" part is NOT scored. It lists recent Yahoo
+    news headlines and flags those matching launch-type keywords; keyword
+    matching on headlines misses things and misreads others, so it is context
+    to read, never part of PASS/FAIL.
   - Thresholds are O'Neil's rules of thumb, kept in THRESHOLDS so they are easy to change.
 """
 from __future__ import annotations
 
-from datetime import date
+import re
+from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
@@ -41,6 +46,19 @@ THRESHOLDS = {
     "inst_mid_low": 0.30,
     "inst_high": 0.90,
 }
+
+NEWS_WINDOW_DAYS = 45   # N: how far back to look for product/innovation headlines
+NEWS_MAX_ITEMS = 6
+
+# Headline phrases that suggest a new product, service or strategic move. Deliberately
+# narrow: "announces" alone would match every press release.
+INNOVATION_RE = re.compile(
+    r"\b(launch(?:es|ed|ing)?|unveil(?:s|ed|ing)?|introduc(?:es|ed|ing)|debut(?:s|ed)?|roll(?:s|ed)? out|"
+    r"new (?:product|products|service|feature|features|model|models|chip|chips|platform|device|devices|line|lineup|"
+    r"iphone|ipad|mac|series|version|generation)|next-gen(?:eration)?|patents?|breakthrough|"
+    r"fda (?:approval|approves|approved|clearance|clears|cleared)|partner(?:s|ed|ship)? with|partnership)\b",
+    re.I,
+)
 
 LETTERS = {
     "C": "Current quarterly earnings",
@@ -80,8 +98,10 @@ def _grade(oks: list[bool | None]) -> str:
     return PARTIAL if any(avail) else FAIL
 
 
-def _result(status: str, headline: str, metrics: list[tuple[str, str]], notes: list[str]) -> dict[str, Any]:
-    return {"status": status, "headline": headline, "metrics": [{"k": k, "v": v} for k, v in metrics], "notes": notes}
+def _result(status: str, headline: str, metrics: list[tuple[str, str]], notes: list[str],
+            items: list[dict[str, str]] | None = None) -> dict[str, Any]:
+    return {"status": status, "headline": headline, "metrics": [{"k": k, "v": v} for k, v in metrics],
+            "notes": notes, "items": items or []}
 
 
 def _na(why: str) -> dict[str, Any]:
@@ -182,7 +202,24 @@ def letter_a(f: dict) -> dict[str, Any]:
     return _result(status, headline, metrics, notes)
 
 
-def letter_n(px: pd.DataFrame) -> dict[str, Any]:
+def recent_catalysts(news: list[dict[str, str]], as_of: date) -> tuple[list[dict[str, str]], int]:
+    """Recent headlines for the N card, innovation-looking ones first.
+
+    Returns (items to show, number of innovation-flagged headlines in the window).
+    Headlines older than NEWS_WINDOW_DAYS (or undated) are ignored.
+    """
+    cutoff = (as_of - timedelta(days=NEWS_WINDOW_DAYS)).isoformat()
+    recent = [n for n in news if n.get("date") and n["date"] >= cutoff]
+    flagged = []
+    for n in recent:
+        m = INNOVATION_RE.search(n["title"])
+        flagged.append({"title": n["title"], "date": n["date"], "source": n.get("source", ""), "url": n.get("url", ""),
+                        "tag": "innovation" if m else ""})
+    flagged.sort(key=lambda n: n["tag"] != "innovation")  # stable: innovation first, newest-first within each group
+    return flagged[:NEWS_MAX_ITEMS], sum(1 for n in flagged if n["tag"])
+
+
+def letter_n(px: pd.DataFrame, f: dict | None = None) -> dict[str, Any]:
     th = THRESHOLDS
     last = float(px["close"].iloc[-1])
     high52 = float(px["high52"].iloc[-1])
@@ -202,7 +239,20 @@ def letter_n(px: pd.DataFrame) -> dict[str, Any]:
     headline = f"{_pct(off)} from the 52-week high"
     if status == PASS:
         headline += " (at or near highs)"
-    return _result(status, headline, metrics, notes)
+
+    # New products / services: context only, never changes `status`.
+    items: list[dict[str, str]] = []
+    news = (f or {}).get("news")
+    if news is not None:
+        items, n_flagged = recent_catalysts(news, px.index[-1].date())
+        metrics.append((f"Launch-type headlines ({NEWS_WINDOW_DAYS}d)", str(n_flagged) if items else "none found"))
+        if items:
+            notes.append("Headlines are matched by keyword and may miss or misread; read the articles. Not part of the PASS/FAIL result.")
+        else:
+            notes.append(f"No news headlines from Yahoo in the last {NEWS_WINDOW_DAYS} days.")
+        if status == PASS and n_flagged:
+            notes.append("Near highs with fresh launch-type news: the combination O'Neil looks for.")
+    return _result(status, headline, metrics, notes, items)
 
 
 def letter_s(px: pd.DataFrame, f: dict) -> dict[str, Any]:
@@ -272,7 +322,7 @@ def evaluate(px: pd.DataFrame, bench_close: pd.Series, fundamentals: dict, marke
     letters = {
         "C": letter_c(fundamentals),
         "A": letter_a(fundamentals),
-        "N": letter_n(px),
+        "N": letter_n(px, fundamentals),
         "S": letter_s(px, fundamentals),
         "L": letter_l(px, bench_close),
         "I": letter_i(fundamentals),

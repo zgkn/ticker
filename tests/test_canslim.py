@@ -1,3 +1,5 @@
+from datetime import date
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -121,3 +123,39 @@ def test_evaluate_with_no_fundamentals_marks_na_not_zero():
     res = cs.evaluate(px, bench["close"], {}, market)
     assert res["letters"]["C"]["status"] == NA and res["letters"]["A"]["status"] == NA
     assert res["tally"]["na"] >= 4  # C, A, I, M
+
+
+# --- N: recent news / innovation context ---------------------------------------
+
+NEWS = [
+    {"title": "Acme unveils new Rocket X platform", "date": "2026-10-20", "source": "Wire", "url": "https://example.com/a", "summary": ""},
+    {"title": "Analysts trim Acme price target", "date": "2026-10-22", "source": "Blog", "url": "https://example.com/b", "summary": ""},
+    {"title": "Acme launches cloud service", "date": "2026-10-01", "source": "Wire", "url": "", "summary": ""},
+    {"title": "Acme introduces new chip", "date": "2026-06-01", "source": "Wire", "url": "https://example.com/old", "summary": ""},   # outside window
+    {"title": "Undated Acme launch", "date": "", "source": "", "url": "", "summary": ""},                                             # ignored
+]
+
+
+def test_recent_catalysts_filters_window_and_puts_innovation_first():
+    items, n_flagged = cs.recent_catalysts(NEWS, date(2026, 10, 23))
+    assert [i["title"] for i in items] == ["Acme unveils new Rocket X platform", "Acme launches cloud service", "Analysts trim Acme price target"]
+    assert [i["tag"] for i in items] == ["innovation", "innovation", ""]
+    assert n_flagged == 2
+
+
+def test_news_never_changes_the_n_status():
+    px = _px(np.linspace(50, 100, 300))
+    plain = cs.letter_n(px)
+    with_news = cs.letter_n(px, {"news": NEWS})
+    assert plain["status"] == with_news["status"] == PASS
+    assert plain["items"] == []
+    assert len(with_news["items"]) == 3
+    assert any("fresh launch-type news" in n for n in with_news["notes"])
+    # a downtrend with great news is still a FAIL
+    far = _px(np.concatenate([np.linspace(50, 100, 250), np.linspace(100, 60, 50)]))
+    assert cs.letter_n(far, {"news": NEWS})["status"] == FAIL
+
+
+def test_n_with_empty_news_says_so():
+    res = cs.letter_n(_px(np.linspace(50, 100, 300)), {"news": []})
+    assert res["items"] == [] and any("No news headlines" in n for n in res["notes"])

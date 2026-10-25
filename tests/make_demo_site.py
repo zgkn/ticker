@@ -24,7 +24,12 @@ def main(out: str) -> None:
     specs = [("DEMOUP", 11, 0.0012, True), ("DEMODN", 12, -0.0008, False), ("DEMOCHOP", 13, 0.0001, True)]
     rows = []
     for sym, seed, drift, strong in specs:
-        f = make_fundamentals(strong) | {"symbol": sym, "name": f"{sym.title()} (synthetic)"}
+        news = [
+            {"title": f"{sym} unveils new Rocket X platform", "date": "2026-10-21", "source": "Demo Wire", "url": "https://example.com/rocket", "summary": ""},
+            {"title": "Analysts trim price target <img src=x onerror=alert(1)>", "date": "2026-10-22", "source": "Demo Blog", "url": "javascript:alert(1)", "summary": ""},
+            {"title": f"{sym} launches cloud service for small teams", "date": "2026-10-05", "source": "Demo Wire", "url": "https://example.com/cloud", "summary": ""},
+        ]
+        f = make_fundamentals(strong) | {"symbol": sym, "name": f"{sym.title()} (synthetic)", "news": news}
         p = build_site.build_payload(sym, make_prices(seed=seed, drift=drift), spy, qqq, f)
         build_site.write_ticker(p, data_dir)
         rows.append(build_site.summary_row(p))

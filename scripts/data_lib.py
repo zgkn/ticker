@@ -99,6 +99,49 @@ def _safe(fn: Callable[[], Any], what: str, default: Any) -> Any:
         return default
 
 
+def _http_url(u: Any) -> str:
+    """Only http(s) links are kept: the text comes from a third party and ends up in an href."""
+    return u if isinstance(u, str) and re.match(r"^https?://", u, re.I) else ""
+
+
+def parse_news(raw: list[dict] | None) -> list[dict[str, str]]:
+    """Normalise yfinance's news payload to [{title, summary, date, source, url}], newest first.
+
+    yfinance has shipped two shapes: the current one nests everything under
+    item["content"] (title, summary, pubDate, provider.displayName,
+    canonicalUrl.url); the older one is flat (title, publisher, link,
+    providerPublishTime as epoch seconds). Items without a title are dropped.
+    """
+    out = []
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        c = item.get("content") if isinstance(item.get("content"), dict) else item
+        title = (c.get("title") or "").strip()
+        if not title:
+            continue
+        when = c.get("pubDate") or c.get("displayTime") or item.get("providerPublishTime")
+        try:
+            date = (pd.Timestamp(when, unit="s") if isinstance(when, (int, float)) else pd.Timestamp(when)).strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001 - unparseable/missing date: keep the headline undated
+            date = ""
+        provider = c.get("provider") if isinstance(c.get("provider"), dict) else {}
+        url = ""
+        for link in (c.get("canonicalUrl"), c.get("clickThroughUrl")):
+            if isinstance(link, dict) and _http_url(link.get("url")):
+                url = link["url"]
+                break
+        url = url or _http_url(c.get("link")) or _http_url(item.get("link"))
+        out.append({
+            "title": title,
+            "summary": (c.get("summary") or "").strip(),
+            "date": date,
+            "source": provider.get("displayName") or c.get("publisher") or item.get("publisher") or "",
+            "url": url,
+        })
+    return sorted(out, key=lambda n: n["date"], reverse=True)
+
+
 def fetch_fundamentals(symbol: str) -> dict[str, Any]:
     """Fundamentals for CAN SLIM. Missing fields are None / empty lists, never fabricated.
 
@@ -120,6 +163,8 @@ def fetch_fundamentals(symbol: str) -> dict[str, Any]:
         if len(alt) > len(q_eps):
             q_eps, eps_source = alt, "reported EPS (earnings dates)"
 
+    news = parse_news(_safe(lambda: t.news, f"news {symbol}", []))
+
     return {
         "symbol": symbol,
         "name": info.get("longName") or info.get("shortName") or symbol,
@@ -131,4 +176,5 @@ def fetch_fundamentals(symbol: str) -> dict[str, Any]:
         "float_shares": info.get("floatShares"),
         "shares_outstanding": info.get("sharesOutstanding"),
         "inst_pct": info.get("heldPercentInstitutions"),
+        "news": news,
     }
