@@ -2,12 +2,3 @@
 # One ticker per line (Yahoo Finance symbols). Refreshed by the daily run and shown
 # in the "Candidates" section of the Overview tab. Move a ticker to watchlist.txt
 # (or use the Analyze workflow's "add_to" option) once it earns a place there.
-PLTR
-UBER
-DOCS
-RKLB
-IRDM
-KEY
-SOFI
-HIMS
-BAC
