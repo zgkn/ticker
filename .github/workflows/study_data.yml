@@ -1,0 +1,76 @@
+name: Study data
+
+# Separate from the dashboard: downloads long daily history for the chart-pattern
+# study and commits it under study/data/. Run it manually (Actions tab or the
+# GitHub mobile app). It does not touch docs/ or the watchlists.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "One ticker"
+        required: false
+        default: "NVDA"
+        type: string
+      period:
+        description: "How much history"
+        required: false
+        default: "6y"
+        type: choice
+        options:
+          - 5y
+          - 6y
+          - 7y
+          - 10y
+          - max
+
+permissions:
+  contents: write
+
+concurrency:
+  group: study-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Inputs go through env vars, never interpolated into the script; the Python
+      # side validates the ticker and the period.
+      - name: Download history
+        env:
+          TICKER: ${{ inputs.ticker }}
+          PERIOD: ${{ inputs.period }}
+        run: python scripts/study_fetch.py "$TICKER" "$PERIOD"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add study/data
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update study data [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          for i in 1 2 3 4; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            echo "Push failed, retrying ($i)..."
+            sleep $((i * 3))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
