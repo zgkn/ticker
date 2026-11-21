@@ -1,0 +1,68 @@
+name: Pattern scan
+
+# Scans the screener universe with the project's chart-pattern detectors and commits
+# study/scan/pattern_scan.json and .csv. Manual run. Does not touch docs/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback:
+        description: "Patterns that completed within this many trading days"
+        required: false
+        default: "10"
+        type: string
+      min_price:
+        description: "Lowest share price (USD)"
+        required: false
+        default: "10"
+        type: string
+      max_price:
+        description: "Highest share price (USD)"
+        required: false
+        default: "100"
+        type: string
+      bullish_only:
+        description: "Only bullish patterns (true/false)"
+        required: false
+        default: "true"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pattern-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run the scan
+        env:
+          LOOKBACK: ${{ inputs.lookback || '10' }}
+          MIN_PRICE: ${{ inputs.min_price || '10' }}
+          MAX_PRICE: ${{ inputs.max_price || '100' }}
+          BULL: ${{ inputs.bullish_only || 'true' }}
+        run: python scripts/pattern_scan.py --lookback "$LOOKBACK" --min-price "$MIN_PRICE" --max-price "$MAX_PRICE" --bullish-only "$BULL"
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add study/scan
+          if git diff --cached --quiet; then echo "No changes."; exit 0; fi
+          git commit -m "Update pattern scan [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          for i in 1 2 3 4; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            sleep $((i * 3)); git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
