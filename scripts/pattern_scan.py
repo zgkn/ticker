@@ -80,6 +80,13 @@ def main(argv: list[str]) -> int:
                 funnel=dict(universe=len(symbols), downloaded=len(prices), scanned=scanned, detections=len(rows)))
     (out / "pattern_scan.json").write_text(json.dumps(dict(meta, rows=rows), indent=1))
     pd.DataFrame(rows).to_csv(out / "pattern_scan.csv", index=False)
+    # recent bars for every detected symbol, so charts can be drawn without re-downloading
+    keep = {}
+    for sym in sorted({r["symbol"] for r in rows}):
+        t = prices[sym].tail(160)
+        keep[sym] = dict(d=[str(i.date()) for i in t.index], c=[round(float(v), 3) for v in t.close],
+                         v=[int(v) for v in t.volume])
+    (out / "pattern_scan_prices.json").write_text(json.dumps(keep, separators=(",", ":")))
     print(json.dumps(meta["funnel"]))
     for r in rows[:40]:
         print(r["symbol"], r["pattern"], r["date"], r["entry_close"], r["last_close"])
