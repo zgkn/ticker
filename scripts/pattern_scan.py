@@ -84,8 +84,9 @@ def main(argv: list[str]) -> int:
     keep = {}
     for sym in sorted({r["symbol"] for r in rows}):
         t = prices[sym].tail(160)
-        keep[sym] = dict(d=[str(i.date()) for i in t.index], c=[round(float(v), 3) for v in t.close],
-                         v=[int(v) for v in t.volume])
+        keep[sym] = dict(d=[str(i.date()) for i in t.index], o=[round(float(v), 3) for v in t.open],
+                         h=[round(float(v), 3) for v in t.high], l=[round(float(v), 3) for v in t.low],
+                         c=[round(float(v), 3) for v in t.close], v=[int(v) for v in t.volume])
     (out / "pattern_scan_prices.json").write_text(json.dumps(keep, separators=(",", ":")))
     print(json.dumps(meta["funnel"]))
     for r in rows[:40]:
