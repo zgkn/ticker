@@ -55,7 +55,9 @@ def fetch_since(symbol: str, start: str) -> pd.DataFrame:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2014-01-01")
-    ap.add_argument("--tickers", default="", help="comma list; empty = backtest/universe.txt")
+    ap.add_argument("--tickers", default="", help="comma list; empty = the universe file")
+    ap.add_argument("--universe", default=str(UNIVERSE), help="universe file (must sit under backtest*/)")
+    ap.add_argument("--out", default=str(OUT), help="output folder (must sit under backtest*/)")
     args = ap.parse_args(argv[1:])
 
     try:
@@ -63,16 +65,22 @@ def main(argv: list[str]) -> int:
     except ValueError:
         raise SystemExit(f"bad --start {args.start!r}, expected YYYY-MM-DD")
 
-    symbols = data_lib.parse_symbols([args.tickers]) if args.tickers.strip() else read_universe(UNIVERSE)
+    for label, val in (("--universe", args.universe), ("--out", args.out)):
+        pth = Path(val)
+        if pth.is_absolute() or ".." in pth.parts or not pth.parts[0].startswith("backtest"):
+            raise SystemExit(f"{label} must be a relative path under backtest*/, got {val!r}")
+    universe, out = Path(args.universe), Path(args.out)
+
+    symbols = data_lib.parse_symbols([args.tickers]) if args.tickers.strip() else read_universe(universe)
     if not symbols:
         raise SystemExit("no tickers to fetch")
 
-    OUT.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     rows = []
     for n, sym in enumerate(symbols, 1):
         try:
             df = fetch_since(sym, start)
-            df.to_csv(OUT / f"{sym}_daily.csv", float_format="%.4f")
+            df.to_csv(out / f"{sym}_daily.csv", float_format="%.4f")
             rows.append(dict(ticker=sym, status="ok", first=df.index[0].date(), last=df.index[-1].date(),
                              rows=len(df), zero_volume_days=int((df["volume"] == 0).sum())))
             print(f"[{n}/{len(symbols)}] {sym}: {len(df)} bars, {df.index[0].date()} to {df.index[-1].date()}")
@@ -81,7 +89,7 @@ def main(argv: list[str]) -> int:
             print(f"[{n}/{len(symbols)}] {sym}: FAILED ({exc})")
         time.sleep(PAUSE_SECONDS)
 
-    pd.DataFrame(rows).to_csv(OUT / "manifest.csv", index=False)
+    pd.DataFrame(rows).to_csv(out / "manifest.csv", index=False)
     ok = sum(r["status"] == "ok" for r in rows)
     print(f"done: {ok} ok, {len(rows) - ok} failed")
     return 0 if ok else 1

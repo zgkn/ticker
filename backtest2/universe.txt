@@ -1,0 +1,77 @@
+# Sector sample, drawn with seed 42 from end-2005 S&P 500 members still in the index.
+# role LOCKED = hold-out stocks: downloaded but NOT to be used until the final test.
+VZ  # Communication Services | research
+OMC  # Communication Services | research
+T  # Communication Services | research
+DIS  # Communication Services | research
+CMCSA  # Communication Services | LOCKED
+NKE  # Consumer Discretionary | research
+PHM  # Consumer Discretionary | research
+TPR  # Consumer Discretionary | research
+YUM  # Consumer Discretionary | research
+HAS  # Consumer Discretionary | research
+F  # Consumer Discretionary | LOCKED
+WMT  # Consumer Staples | research
+KO  # Consumer Staples | research
+KR  # Consumer Staples | research
+KMB  # Consumer Staples | research
+COST  # Consumer Staples | research
+BF-B  # Consumer Staples | LOCKED
+OXY  # Energy | research
+DVN  # Energy | research
+WMB  # Energy | research
+CVX  # Energy | research
+XOM  # Energy | research
+HAL  # Energy | LOCKED
+GS  # Financials | research
+ALL  # Financials | research
+AON  # Financials | research
+HBAN  # Financials | research
+PRU  # Financials | research
+WFC  # Financials | LOCKED
+BIIB  # Health Care | research
+MDT  # Health Care | research
+TMO  # Health Care | research
+ABT  # Health Care | research
+DGX  # Health Care | research
+A  # Health Care | LOCKED
+FDX  # Industrials | research
+HON  # Industrials | research
+PH  # Industrials | research
+UPS  # Industrials | research
+UNP  # Industrials | research
+LUV  # Industrials | LOCKED
+HPQ  # Information Technology | research
+MSI  # Information Technology | research
+GLW  # Information Technology | research
+INTU  # Information Technology | research
+MU  # Information Technology | research
+QCOM  # Information Technology | LOCKED
+ECL  # Materials | research
+VMC  # Materials | research
+AVY  # Materials | research
+PPG  # Materials | research
+NUE  # Materials | research
+APD  # Materials | LOCKED
+SPG  # Real Estate | research
+PSA  # Real Estate | research
+WY  # Real Estate | LOCKED
+EIX  # Utilities | research
+PNW  # Utilities | research
+AEP  # Utilities | research
+CNP  # Utilities | research
+DUK  # Utilities | research
+NI  # Utilities | LOCKED
+# sector funds and market check
+XLK  # fund
+XLF  # fund
+XLE  # fund
+XLV  # fund
+XLY  # fund
+XLP  # fund
+XLI  # fund
+XLB  # fund
+XLU  # fund
+VNQ  # fund
+VOX  # fund
+SPY  # fund
