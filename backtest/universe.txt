@@ -1,0 +1,45 @@
+# Backtest universe: US tech stocks that were S&P 500 members at end-2015 (still trading, data available),
+# plus three index series as a survivorship-free check. Chosen by rule before looking at results.
+# Add later names only with a stated reason and keep them as a separate group.
+AAPL
+MSFT
+GOOGL
+AMZN
+META
+NFLX
+IBM
+ORCL
+CSCO
+INTC
+HPQ
+HPE
+QCOM
+TXN
+ADBE
+CRM
+INTU
+ACN
+CTSH
+NVDA
+AVGO
+AMAT
+MU
+ADI
+LRCX
+KLAC
+MCHP
+SWKS
+WDC
+STX
+NTAP
+AKAM
+FFIV
+ADSK
+GLW
+APH
+TEL
+PYPL
+EBAY
+QQQ
+XLK
+SOXX
