@@ -1,0 +1,63 @@
+sector,ticker,company,role
+Communication Services,VZ,Verizon,research
+Communication Services,OMC,Omnicom Group,research
+Communication Services,T,AT&T,research
+Communication Services,DIS,Walt Disney Company (The),research
+Communication Services,CMCSA,Comcast,LOCKED
+Consumer Discretionary,NKE,"Nike, Inc.",research
+Consumer Discretionary,PHM,PulteGroup,research
+Consumer Discretionary,TPR,"Tapestry, Inc.",research
+Consumer Discretionary,YUM,Yum! Brands,research
+Consumer Discretionary,HAS,Hasbro,research
+Consumer Discretionary,F,Ford Motor Company,LOCKED
+Consumer Staples,WMT,Walmart,research
+Consumer Staples,KO,Coca-Cola Company (The),research
+Consumer Staples,KR,Kroger,research
+Consumer Staples,KMB,Kimberly-Clark,research
+Consumer Staples,COST,Costco,research
+Consumer Staples,BF-B,Brown–Forman,LOCKED
+Energy,OXY,Occidental Petroleum,research
+Energy,DVN,Devon Energy,research
+Energy,WMB,Williams Companies,research
+Energy,CVX,Chevron Corporation,research
+Energy,XOM,ExxonMobil,research
+Energy,HAL,Halliburton,LOCKED
+Financials,GS,Goldman Sachs,research
+Financials,ALL,Allstate,research
+Financials,AON,Aon plc,research
+Financials,HBAN,Huntington Bancshares,research
+Financials,PRU,Prudential Financial,research
+Financials,WFC,Wells Fargo,LOCKED
+Health Care,BIIB,Biogen,research
+Health Care,MDT,Medtronic,research
+Health Care,TMO,Thermo Fisher Scientific,research
+Health Care,ABT,Abbott Laboratories,research
+Health Care,DGX,Quest Diagnostics,research
+Health Care,A,Agilent Technologies,LOCKED
+Industrials,FDX,FedEx,research
+Industrials,HON,Honeywell Technologies,research
+Industrials,PH,Parker Hannifin,research
+Industrials,UPS,United Parcel Service,research
+Industrials,UNP,Union Pacific Corporation,research
+Industrials,LUV,Southwest Airlines,LOCKED
+Information Technology,HPQ,HP Inc.,research
+Information Technology,MSI,Motorola Solutions,research
+Information Technology,GLW,Corning Inc.,research
+Information Technology,INTU,Intuit,research
+Information Technology,MU,Micron Technology,research
+Information Technology,QCOM,Qualcomm,LOCKED
+Materials,ECL,Ecolab,research
+Materials,VMC,Vulcan Materials Company,research
+Materials,AVY,Avery Dennison,research
+Materials,PPG,PPG Industries,research
+Materials,NUE,Nucor,research
+Materials,APD,Air Products,LOCKED
+Real Estate,SPG,Simon Property Group,research
+Real Estate,PSA,Public Storage,research
+Real Estate,WY,Weyerhaeuser,LOCKED
+Utilities,EIX,Edison International,research
+Utilities,PNW,Pinnacle West Capital,research
+Utilities,AEP,American Electric Power,research
+Utilities,CNP,CenterPoint Energy,research
+Utilities,DUK,Duke Energy,research
+Utilities,NI,NiSource,LOCKED

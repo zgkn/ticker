@@ -12,8 +12,18 @@ on:
         required: false
         default: "2014-01-01"
         type: string
+      universe:
+        description: "Universe file under backtest*/ (default: the tech universe)"
+        required: false
+        default: "backtest/universe.txt"
+        type: string
+      out:
+        description: "Output folder under backtest*/ (default: backtest/data)"
+        required: false
+        default: "backtest/data"
+        type: string
       tickers:
-        description: "Optional comma list; leave empty to use backtest/universe.txt"
+        description: "Optional comma list; leave empty to use the universe file"
         required: false
         default: ""
         type: string
@@ -50,17 +60,21 @@ jobs:
         env:
           START: ${{ inputs.start }}
           TICKERS: ${{ inputs.tickers }}
-        run: python scripts/backtest_fetch.py --start "$START" --tickers "$TICKERS"
+          UNIVERSE: ${{ inputs.universe }}
+          OUT: ${{ inputs.out }}
+        run: python scripts/backtest_fetch.py --start "$START" --tickers "$TICKERS" --universe "$UNIVERSE" --out "$OUT"
 
       - name: Show manifest
         if: always()
-        run: cat backtest/data/manifest.csv || true
+        env:
+          OUT: ${{ inputs.out }}
+        run: cat "$OUT/manifest.csv" || true
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backtest/data
+          git add -A backtest backtest2
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
